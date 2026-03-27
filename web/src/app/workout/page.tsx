@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWorkout } from "@/context/WorkoutContext";
+import { useAuth } from "@/context/AuthContext";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { EXERCISES, getExerciseById, Exercise } from "@/data/exerciseData";
+import {
+  saveWorkoutSession,
+  getWorkoutGroups,
+  WorkoutGroup,
+} from "@/lib/userService";
 import {
   Play,
   Pause,
@@ -29,6 +36,7 @@ import {
 
 function WorkoutContent() {
   const searchParams = useSearchParams();
+  const { user } = useAuth();
   const router = useRouter();
   const {
     selectedExerciseId,
@@ -44,25 +52,32 @@ function WorkoutContent() {
   const [exerciseQueue, setExerciseQueue] = useState<Exercise[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [queueOpen, setQueueOpen] = useState(true);
+  const activeExercise = exerciseQueue[activeIndex];
 
   // Saved Groups for Zero State
-  const [savedGroups, setSavedGroups] = useState<{id: string, name: string, exercises: string[]}[]>([]);
+  const [savedGroups, setSavedGroups] = useState<WorkoutGroup[]>([]);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("flex_workout_groups");
-      if (stored) setSavedGroups(JSON.parse(stored));
-    } catch (e) {}
-  }, []);
+    if (!user) return;
+    const loadGroups = async () => {
+      try {
+        const groups = await getWorkoutGroups(user.uid);
+        setSavedGroups(groups);
+      } catch (e) {
+        console.error("Failed to load workout groups:", e);
+      }
+    };
+    loadGroups();
+  }, [user]);
 
   // Session state
   const [isRunning, setIsRunning] = useState(false);
   const [currentSet, setCurrentSet] = useState(1);
   const [totalSets, setTotalSets] = useState(3);
+  const [targetReps, setTargetReps] = useState(10);
   const [reps, setReps] = useState(0);
   const [accuracy, setAccuracy] = useState(0);
   const [status, setStatus] = useState<"READY" | "PERFECT" | "GOOD" | "NEEDS WORK">("READY");
-
   // Timer
   const [elapsed, setElapsed] = useState(0);
   const [restTimer, setRestTimer] = useState(0);
@@ -113,18 +128,76 @@ function WorkoutContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  const activeExercise = exerciseQueue[activeIndex];
+
+  // ── Voice Announcements: Rep-Based Exercises ──
+  const prevRepsRef = useRef(0);
+  const announcedSetsRef = useRef(new Set<number>());
+
+  useEffect(() => {
+    if (!activeExercise || activeExercise.isHoldBased || !voiceEnabled) return;
+
+    if (reps > prevRepsRef.current) {
+      prevRepsRef.current = reps;
+
+      if (reps === targetReps) {
+         if (!announcedSetsRef.current.has(currentSet)) {
+           announcedSetsRef.current.add(currentSet);
+           fetch("http://127.0.0.1:8000/speak", {
+             method: "POST", headers: { "Content-Type": "application/json" },
+             body: JSON.stringify({text: `Great job! That's one set.`})
+           }).catch(() => {});
+         }
+      } else if (reps === targetReps - 1) {
+         fetch("http://127.0.0.1:8000/speak", {
+           method: "POST", headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({text: `Just one more!`})
+         }).catch(() => {});
+      } else if (reps > 0 && reps < targetReps - 1) {
+         fetch("http://127.0.0.1:8000/speak", {
+           method: "POST", headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({text: `That's ${reps}`})
+         }).catch(() => {});
+      }
+    } else if (reps === 0) {
+      prevRepsRef.current = 0; // reset on set change
+    }
+  }, [reps, activeExercise, currentSet, voiceEnabled, targetReps]);
+
+  // ── Voice Announcements: Hold-Based Exercises ──
+  const holdSecondsRef = useRef(0);
+  
+  useEffect(() => {
+    if (!isRunning || !activeExercise?.isHoldBased || !voiceEnabled) return;
+    
+    const iv = setInterval(() => {
+       if (status === "PERFECT" || status === "GOOD") {
+           holdSecondsRef.current += 1;
+           const s = holdSecondsRef.current;
+           if (s === 10) {
+               fetch("http://127.0.0.1:8000/speak", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text: "10 seconds, keep holding!"}) }).catch(()=>{});
+           } else if (s === 20) {
+               fetch("http://127.0.0.1:8000/speak", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text: "20 seconds, almost there!"}) }).catch(()=>{});
+           } else if (s === targetReps) {
+               if (!announcedSetsRef.current.has(currentSet)) {
+                  announcedSetsRef.current.add(currentSet);
+                  fetch("http://127.0.0.1:8000/speak", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text: `Great job! That's one set.`}) }).catch(()=>{});
+               }
+           }
+       }
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [isRunning, status, activeExercise, currentSet, voiceEnabled, targetReps]);
 
   // Sync selected exercise
   useEffect(() => {
     if (activeExercise) {
       setSelectedExerciseId(activeExercise.id);
-      
+
       // Auto-play demo if available on exercise switch
       if (activeExercise.demoVideo && demoVideoEnabled) {
         setShowDemo(true);
         setIsRunning(false);
-        try { fetch("http://127.0.0.1:8000/stop"); } catch(e){}
+        try { fetch("http://127.0.0.1:8000/stop"); } catch (e) { }
       } else {
         setShowDemo(false);
       }
@@ -182,8 +255,28 @@ function WorkoutContent() {
     return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   };
 
-  const nextExercise = () => {
+  // Save session data to Firestore when moving to next exercise
+  const saveCurrentSession = async (overrideSet?: number) => {
+    if (!user || !activeExercise || reps === 0) return;
+    try {
+      await saveWorkoutSession(user.uid, {
+        exerciseId: activeExercise.id,
+        exerciseName: activeExercise.name,
+        score: accuracy > 0 ? Math.round(accuracy) : 0,
+        reps,
+        targetReps,
+        duration: elapsed,
+        date: new Date().toISOString(),
+        setNumber: overrideSet || currentSet,
+      });
+    } catch (err) {
+      console.error("Failed to save workout session:", err);
+    }
+  };
+
+  const nextExercise = async () => {
     if (activeIndex < exerciseQueue.length - 1) {
+      await saveCurrentSession();
       setActiveIndex(activeIndex + 1);
       resetSession();
     }
@@ -204,9 +297,12 @@ function WorkoutContent() {
     setCurrentSet(1);
     setStatus("READY");
     setEngineMode("IDLE");
+    prevRepsRef.current = 0;
+    holdSecondsRef.current = 0;
+    announcedSetsRef.current.clear();
     try {
       await fetch("http://127.0.0.1:8000/stop");
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const toggleRunning = async () => {
@@ -214,7 +310,7 @@ function WorkoutContent() {
       setIsRunning(false);
       try {
         await fetch("http://127.0.0.1:8000/stop");
-      } catch (e) {}
+      } catch (e) { }
     } else {
       setIsRunning(true);
     }
@@ -226,22 +322,42 @@ function WorkoutContent() {
     setIsRunning(false);
   };
 
-  const nextSet = () => {
+  const nextSet = async () => {
     if (currentSet < totalSets) {
+      if (!announcedSetsRef.current.has(currentSet)) {
+        announcedSetsRef.current.add(currentSet);
+        fetch("http://127.0.0.1:8000/speak", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({text: `Great job! That's one set.`})
+        }).catch(() => {});
+      }
+      await saveCurrentSession(currentSet);
       setCurrentSet(currentSet + 1);
       setReps(0);
       setElapsed(0);
       setIsRunning(true);
       setIsResting(false);
       setRestTimer(0);
+      prevRepsRef.current = 0;
+      holdSecondsRef.current = 0;
+    } else {
+      if (!announcedSetsRef.current.has(currentSet)) {
+        announcedSetsRef.current.add(currentSet);
+        fetch("http://127.0.0.1:8000/speak", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({text: `Great job! You completed set ${currentSet}.`})
+        }).catch(() => {});
+      }
+      await saveCurrentSession(currentSet);
+      nextExercise();
     }
   };
 
   const statusColor = (s: string) => {
-    if (s === "PERFECT") return "text-emerald-500 bg-emerald-50 border-emerald-200";
-    if (s === "GOOD") return "text-amber-500 bg-amber-50 border-amber-200";
-    if (s === "NEEDS WORK") return "text-rose-500 bg-rose-50 border-rose-200";
-    return "text-slate-400 bg-slate-50 border-slate-200";
+    if (s === "PERFECT") return "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
+    if (s === "GOOD") return "text-amber-400 bg-amber-500/10 border-amber-500/30";
+    if (s === "NEEDS WORK") return "text-rose-400 bg-rose-500/10 border-rose-500/30";
+    return "text-slate-400 bg-white/5 dark:bg-white/5 border-slate-200 dark:border-slate-700";
   };
 
   const updateDuration = (exId: string, delta: number) => {
@@ -254,54 +370,54 @@ function WorkoutContent() {
   // ── ZERO STATE: No active queue ──
   if (exerciseQueue.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 bg-slate-50 min-h-screen">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 bg-slate-50 dark:bg-[#060a14] min-h-screen">
         <div className="text-center w-full max-w-4xl mx-auto">
-          <div className="w-20 h-20 bg-maroon-100 text-maroon-700 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm">
+          <div className="w-20 h-20 bg-maroon-100 dark:bg-maroon-900/30 text-maroon-700 dark:text-maroon-400 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm">
             <BarChart3 size={36} />
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 mb-4" style={{ fontFamily: "var(--font-display)" }}>
+          <h1 className="text-3xl sm:text-4xl font-bold text-slate-800 dark:text-white mb-4" style={{ fontFamily: "var(--font-display)" }}>
             Ready to Workout?
           </h1>
-          <p className="text-slate-500 mb-10 text-base sm:text-lg max-w-xl mx-auto">
+          <p className="text-slate-500 dark:text-slate-400 mb-10 text-base sm:text-lg max-w-xl mx-auto">
             You don't have an active exercise queue. Choose from your saved custom routines to launch your AI physiotherapy session.
           </p>
-          
+
           {savedGroups.length > 0 ? (
             <div className="text-left w-full mb-10">
-              <h2 className="font-semibold text-slate-700 text-lg mb-5 flex items-center gap-2">
-                <Target size={20} className="text-maroon-600"/>
+              <h2 className="font-semibold text-slate-700 dark:text-slate-200 text-lg mb-5 flex items-center gap-2">
+                <Target size={20} className="text-maroon-600 dark:text-maroon-400" />
                 Your Saved Routines
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                 {savedGroups.map(group => (
-                   <button 
-                     key={group.id} 
-                     onClick={() => router.push(`/workout?queue=${group.exercises.join(',')}`)}
-                     className="glass p-6 rounded-2xl text-left hover:border-maroon-300 transition-all group shadow-sm text-slate-800 flex flex-col h-full bg-white/80"
-                   >
-                      <h3 className="font-bold text-lg mb-1 group-hover:text-maroon-700 transition-colors">{group.name}</h3>
-                      <p className="text-sm text-slate-500 flex-1">{group.exercises.length} Exercises bundled together</p>
-                      
-                      <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between w-full">
-                         <span className="text-xs font-semibold text-slate-400 group-hover:text-maroon-600 transition-colors">START SESSION</span>
-                         <div className="w-8 h-8 rounded-full bg-maroon-50 text-maroon-700 flex items-center justify-center group-hover:bg-maroon-700 group-hover:text-white transition-colors">
-                            <Play size={14} className="ml-0.5" />
-                         </div>
+                {savedGroups.map(group => (
+                  <button
+                    key={group.id}
+                    onClick={() => router.push(`/workout?queue=${group.exercises.join(',')}`)}
+                    className="glass p-6 rounded-2xl text-left hover:border-maroon-300 dark:hover:border-maroon-600 transition-all group shadow-sm text-slate-800 dark:text-slate-100 flex flex-col h-full bg-white/80 dark:bg-white/5 dark:backdrop-blur-xl dark:border dark:border-white/10"
+                  >
+                    <h3 className="font-bold text-lg mb-1 group-hover:text-maroon-700 transition-colors">{group.name}</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 flex-1">{group.exercises.length} Exercises bundled together</p>
+
+                    <div className="mt-5 pt-4 border-t border-slate-100 dark:border-white/10 flex items-center justify-between w-full">
+                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 group-hover:text-maroon-600 dark:group-hover:text-maroon-400 transition-colors">START SESSION</span>
+                      <div className="w-8 h-8 rounded-full bg-maroon-50 text-maroon-700 flex items-center justify-center group-hover:bg-maroon-700 group-hover:text-white transition-colors">
+                        <Play size={14} className="ml-0.5" />
                       </div>
-                   </button>
-                 ))}
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
           ) : (
-            <div className="glass p-8 rounded-3xl mb-10 border border-slate-200 bg-white max-w-md mx-auto shadow-sm">
-               <p className="text-slate-500 mb-3 font-medium">You haven't built any custom routines yet.</p>
-               <p className="text-sm text-slate-400">Head over to the Library to mix and match your perfect workout.</p>
+            <div className="glass p-8 rounded-3xl mb-10 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 max-w-md mx-auto shadow-sm">
+              <p className="text-slate-500 mb-3 font-medium">You haven't built any custom routines yet.</p>
+              <p className="text-sm text-slate-400">Head over to the Library to mix and match your perfect workout.</p>
             </div>
           )}
 
-          <button 
-             onClick={() => router.push('/library')}
-             className="px-8 py-3.5 bg-maroon-700 text-white font-medium rounded-xl hover:bg-maroon-800 transition-colors shadow-lg shadow-maroon-700/20 text-base"
+          <button
+            onClick={() => router.push('/library')}
+            className="px-8 py-3.5 bg-maroon-700 text-white font-medium rounded-xl hover:bg-maroon-800 transition-colors shadow-lg shadow-maroon-700/20 text-base"
           >
             + Build New Custom Routine
           </button>
@@ -320,18 +436,18 @@ function WorkoutContent() {
             animate={{ width: 280, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="hidden md:flex flex-col bg-white border-r border-slate-100 overflow-hidden shrink-0"
+            className="hidden md:flex flex-col bg-white dark:bg-[#0b0f19] border-r border-slate-100 dark:border-slate-800 overflow-hidden shrink-0"
           >
-            <div className="px-4 py-4 border-b border-slate-100">
-              <h2 className="font-semibold text-sm text-slate-800 flex items-center gap-2">
-                <BarChart3 size={16} className="text-maroon-700" />
+            <div className="px-4 py-4 border-b border-slate-100 dark:border-slate-800">
+              <h2 className="font-semibold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <BarChart3 size={16} className="text-maroon-700 dark:text-maroon-400" />
                 Exercise Queue ({exerciseQueue.length})
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                 {activeIndex + 1} of {exerciseQueue.length} complete
               </p>
               {/* Progress bar */}
-              <div className="mt-2 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className="mt-2 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                 <motion.div
                   className="h-full bg-gradient-to-r from-maroon-600 to-maroon-400 rounded-full"
                   initial={{ width: 0 }}
@@ -355,13 +471,12 @@ function WorkoutContent() {
                       resetSession();
                     }}
                     whileTap={{ scale: 0.98 }}
-                    className={`w-full text-left px-4 py-3 border-l-3 transition-all ${
-                      isActive
-                        ? "border-l-maroon-700 bg-maroon-50/60"
+                    className={`w-full text-left px-4 py-3 border-l-3 transition-all ${isActive
+                        ? "border-l-maroon-700 bg-maroon-50/60 dark:bg-maroon-900/20"
                         : isDone
-                        ? "border-l-emerald-400 bg-emerald-50/30"
-                        : "border-l-transparent hover:bg-slate-50"
-                    }`}
+                          ? "border-l-emerald-400 bg-emerald-50/30 dark:bg-emerald-900/10"
+                          : "border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-800"
+                      }`}
                   >
                     <div className="flex items-center gap-2.5">
                       {isDone ? (
@@ -375,9 +490,8 @@ function WorkoutContent() {
                       )}
                       <div className="min-w-0 flex-1">
                         <p
-                          className={`text-sm font-medium truncate ${
-                            isActive ? "text-maroon-800" : isDone ? "text-slate-500" : "text-slate-700"
-                          }`}
+                          className={`text-sm font-medium truncate ${isActive ? "text-maroon-800 dark:text-maroon-300" : isDone ? "text-slate-500" : "text-slate-700 dark:text-slate-300"
+                            }`}
                         >
                           {ex.name}
                         </p>
@@ -435,7 +549,7 @@ function WorkoutContent() {
       {/* Queue toggle */}
       <button
         onClick={() => setQueueOpen(!queueOpen)}
-        className="hidden md:flex absolute left-[68px] top-1/2 -translate-y-1/2 z-40 w-5 h-12 items-center justify-center bg-white border border-slate-200 rounded-r-lg shadow-sm hover:bg-maroon-50 transition-colors"
+        className="hidden md:flex absolute left-[68px] top-1/2 -translate-y-1/2 z-40 w-5 h-12 items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-r-lg shadow-sm hover:bg-maroon-50 dark:hover:bg-slate-700 transition-colors"
         style={{ left: queueOpen ? "calc(68px + 280px)" : "68px" }}
       >
         {queueOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
@@ -444,13 +558,13 @@ function WorkoutContent() {
       {/* ── Main Work Area ── */}
       <div className="flex-1 flex flex-col overflow-y-auto">
         {/* Top Bar */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 bg-white/80 backdrop-blur-sm border-b border-slate-100 sticky top-0 z-30">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 bg-white/80 dark:bg-[#0b0f19]/80 backdrop-blur-sm border-b border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-100 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <div>
-              <h1 className="text-lg sm:text-xl font-bold text-slate-800" style={{ fontFamily: "var(--font-display)" }}>
+              <h1 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white" style={{ fontFamily: "var(--font-display)" }}>
                 {activeExercise?.name || "Select Exercise"}
               </h1>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-400 dark:text-slate-500">
                 {activeExercise?.category} · {activeExercise?.targetJoints.join(", ")}
               </p>
             </div>
@@ -458,24 +572,22 @@ function WorkoutContent() {
 
           <div className="flex items-center gap-2">
             {/* Mode Switch */}
-            <div className="hidden sm:flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+            <div className="hidden sm:flex items-center gap-1 bg-slate-100 dark:bg-white/5 rounded-lg p-0.5">
               <button
                 onClick={() => setMode("beginner")}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  mode === "beginner"
-                    ? "bg-white shadow-sm text-maroon-700"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mode === "beginner"
+                    ? "bg-white dark:bg-slate-700 shadow-sm text-maroon-700 dark:text-maroon-300"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  }`}
               >
                 Beginner
               </button>
               <button
                 onClick={() => setMode("advanced")}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  mode === "advanced"
-                    ? "bg-white shadow-sm text-maroon-700"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mode === "advanced"
+                    ? "bg-white dark:bg-slate-700 shadow-sm text-maroon-700 dark:text-maroon-300"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  }`}
               >
                 Advanced
               </button>
@@ -485,14 +597,14 @@ function WorkoutContent() {
             <button
               onClick={prevExercise}
               disabled={activeIndex === 0}
-              className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30 transition-colors"
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-30 transition-colors"
             >
               <ChevronLeft size={18} />
             </button>
             <button
               onClick={nextExercise}
               disabled={activeIndex === exerciseQueue.length - 1}
-              className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30 transition-colors"
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-30 transition-colors"
             >
               <ChevronRight size={18} />
             </button>
@@ -505,7 +617,7 @@ function WorkoutContent() {
             {/* ── LEFT: Camera + Image ── */}
             <div className="xl:col-span-2 space-y-4">
               {/* Camera Frame / Demo Video */}
-              <div className="relative aspect-video bg-slate-900 rounded-2xl overflow-hidden border border-slate-200 shadow-lg">
+              <div className="relative aspect-video bg-slate-900 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700/50 shadow-lg dark:shadow-2xl dark:shadow-black/30">
                 <AnimatePresence mode="wait">
                   {demoVideoEnabled && showDemo ? (
                     <motion.div
@@ -517,12 +629,13 @@ function WorkoutContent() {
                     >
                       {activeExercise?.demoVideo ? (
                         <>
-                          <video 
-                             src={activeExercise.demoVideo}
-                             autoPlay
-                             loop
-                             playsInline
-                             className="w-full h-full object-contain bg-black"
+                          <video
+                            src={activeExercise.demoVideo}
+                            autoPlay
+                            loop
+                            playsInline
+                            controls
+                            className="w-full h-full object-contain bg-black"
                           />
                           <motion.button
                             whileHover={{ scale: 1.05 }}
@@ -562,7 +675,7 @@ function WorkoutContent() {
                             <Camera size={56} className="text-slate-600 mx-auto mb-3" />
                             <p className="text-slate-400 font-medium">Camera Feed</p>
                             <p className="text-slate-500 text-sm mt-1">
-                              Your FLEX pose model runs here
+                              Your ReMotion pose model runs here
                             </p>
                             <motion.button
                               whileHover={{ scale: 1.05 }}
@@ -577,9 +690,9 @@ function WorkoutContent() {
                         </div>
                       ) : (
                         <>
-                          <img 
-                            src={`http://127.0.0.1:8000/video_feed?exercise=${activeExercise?.id}`}
-                            alt="FLEX Engine Stream" 
+                          <img
+                            src={`http://127.0.0.1:8000/video_feed?exercise=${activeExercise?.id}&user_name=${encodeURIComponent(user?.displayName?.split(' ')[0] || 'User')}`}
+                            alt="ReMotion Engine Stream"
                             className="w-full h-full object-contain"
                             onError={(e) => {
                               e.currentTarget.style.display = 'none';
@@ -588,7 +701,7 @@ function WorkoutContent() {
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: -1 }}>
                             <div className="text-center">
                               <div className="animate-spin w-8 h-8 border-3 border-maroon-700 border-t-transparent rounded-full mx-auto mb-3" />
-                              <p className="text-slate-400 text-sm">Starting FLEX Engine...</p>
+                              <p className="text-slate-400 text-sm">Starting ReMotion Engine...</p>
                             </div>
                           </div>
                         </>
@@ -624,44 +737,43 @@ function WorkoutContent() {
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={resetSession}
-                  className="p-3 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                  className="p-3 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
                 >
                   <RotateCcw size={18} />
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={toggleRunning}
-                  className={`p-4 rounded-2xl text-white shadow-lg transition-all ${
-                    isRunning
+                  className={`p-4 rounded-2xl text-white shadow-lg transition-all ${isRunning
                       ? "bg-rose-500 hover:bg-rose-600 shadow-rose-500/30"
                       : "bg-maroon-700 hover:bg-maroon-800 shadow-maroon-700/30"
-                  }`}
+                    }`}
                 >
                   {isRunning ? <Pause size={22} /> : <Play size={22} className="ml-0.5" />}
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={nextExercise}
-                  className="p-3 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                  className="p-3 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
                 >
                   <SkipForward size={18} />
                 </motion.button>
                 {activeExercise?.demoVideo && (
-                   <motion.button
-                     title="View Demo Video"
-                     whileTap={{ scale: 0.9 }}
-                     onClick={() => { setShowDemo(true); setIsRunning(false); try { fetch("http://127.0.0.1:8000/stop"); } catch(e){} }}
-                     className="p-3 rounded-xl bg-maroon-50 text-maroon-700 hover:bg-maroon-100 transition-colors ml-2 shadow-sm border border-maroon-100"
-                   >
-                     <Video size={18} />
-                   </motion.button>
-                 )}
+                  <motion.button
+                    title="View Demo Video"
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => { setShowDemo(true); setIsRunning(false); try { fetch("http://127.0.0.1:8000/stop"); } catch (e) { } }}
+                    className="p-3 rounded-xl bg-maroon-50 dark:bg-maroon-900/20 text-maroon-700 dark:text-maroon-400 hover:bg-maroon-100 dark:hover:bg-maroon-900/40 transition-colors ml-2 shadow-sm border border-maroon-100 dark:border-maroon-800/30"
+                  >
+                    <Video size={18} />
+                  </motion.button>
+                )}
               </div>
 
               {/* Exercise Image (Moved Below) */}
-              <div className="aspect-video md:aspect-[3/1] bg-gradient-to-br from-maroon-50 to-slate-50 rounded-2xl flex items-center justify-center border border-maroon-100/50 overflow-hidden relative">
+              <div className="aspect-video md:aspect-[3/1] bg-gradient-to-br from-maroon-50 dark:from-maroon-950/30 to-slate-50 dark:to-slate-900/50 rounded-2xl flex items-center justify-center border border-maroon-100/50 dark:border-maroon-800/20 overflow-hidden relative">
                 {activeExercise?.image ? (
-                  <img src={activeExercise.image} alt={activeExercise.name} className="w-full h-full object-cover sm:object-contain bg-white" />
+                  <img src={activeExercise.image} alt={activeExercise.name} className="w-full h-full object-cover sm:object-contain bg-white dark:bg-slate-900" />
                 ) : (
                   <div className="text-center">
                     <div className="w-16 h-16 rounded-2xl bg-maroon-100 flex items-center justify-center mx-auto mb-2">
@@ -679,25 +791,25 @@ function WorkoutContent() {
             {/* ── RIGHT: Stats & Controls ── */}
             <div className="space-y-4">
               {/* Live Stats */}
-              <div className="glass rounded-2xl p-4">
-                <h3 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
-                  <BarChart3 size={14} className="text-maroon-700" />
+              <div className="rounded-2xl p-4 bg-white/80 dark:bg-white/[0.03] backdrop-blur-xl border border-slate-200/60 dark:border-white/[0.06] shadow-sm">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
+                  <BarChart3 size={14} className="text-maroon-700 dark:text-maroon-400" />
                   Live Stats
                 </h3>
                 <div className={`grid ${activeExercise?.isHoldBased ? "grid-cols-2" : "grid-cols-3"} gap-3`}>
                   {!activeExercise?.isHoldBased && (
-                    <div className="text-center p-3 rounded-xl bg-slate-50">
-                      <p className="text-2xl font-bold text-maroon-700">{reps}</p>
-                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">REPS</p>
+                    <div className="text-center p-3 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-transparent dark:border-white/[0.06]">
+                      <p className="text-2xl font-bold text-maroon-700 dark:text-maroon-400">{reps}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">REPS</p>
                     </div>
                   )}
-                  <div className="text-center p-3 rounded-xl bg-slate-50">
-                    <p className="text-2xl font-bold text-maroon-700">
+                  <div className="text-center p-3 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-transparent dark:border-white/[0.06]">
+                    <p className="text-2xl font-bold text-maroon-700 dark:text-maroon-400">
                       {accuracy > 0 ? accuracy.toFixed(0) : "—"}
                     </p>
-                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">ACCURACY %</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">ACCURACY %</p>
                   </div>
-                  <div className="text-center p-3 rounded-xl bg-slate-50">
+                  <div className="text-center p-3 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-transparent dark:border-white/[0.06]">
                     <div
                       className={`inline-flex px-2 py-1 rounded-lg text-xs font-bold border ${statusColor(
                         status
@@ -705,26 +817,25 @@ function WorkoutContent() {
                     >
                       {status}
                     </div>
-                    <p className="text-[10px] text-slate-500 font-medium mt-1.5">STATUS</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1.5">STATUS</p>
                   </div>
                 </div>
               </div>
 
               {/* Set System */}
-              <div className="glass rounded-2xl p-4">
-                <h3 className="text-sm font-semibold text-slate-800 mb-3">Set Tracking</h3>
+              <div className="rounded-2xl p-4 bg-white/80 dark:bg-white/[0.03] backdrop-blur-xl border border-slate-200/60 dark:border-white/[0.06] shadow-sm">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">Set Tracking</h3>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-1.5">
                     {Array.from({ length: totalSets }).map((_, i) => (
                       <div
                         key={i}
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${
-                          i + 1 === currentSet
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${i + 1 === currentSet
                             ? "bg-maroon-700 text-white shadow-lg"
                             : i + 1 < currentSet
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-slate-100 text-slate-400"
-                        }`}
+                              ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400"
+                              : "bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-500"
+                          }`}
                       >
                         {i + 1}
                       </div>
@@ -733,13 +844,32 @@ function WorkoutContent() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setTotalSets(Math.max(1, totalSets - 1))}
-                      className="w-6 h-6 rounded bg-slate-100 text-slate-600 text-xs flex items-center justify-center hover:bg-slate-200"
+                      className="w-6 h-6 rounded bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 text-xs flex items-center justify-center hover:bg-slate-200 dark:hover:bg-white/10"
                     >
                       −
                     </button>
                     <button
                       onClick={() => setTotalSets(Math.min(10, totalSets + 1))}
-                      className="w-6 h-6 rounded bg-slate-100 text-slate-600 text-xs flex items-center justify-center hover:bg-slate-200"
+                      className="w-6 h-6 rounded bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 text-xs flex items-center justify-center hover:bg-slate-200 dark:hover:bg-white/10"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-xs font-semibold text-slate-600 dark:text-slate-400">Target Reps / Secs</div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setTargetReps(Math.max(1, targetReps - 1))}
+                      className="w-6 h-6 rounded bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 text-xs flex items-center justify-center hover:bg-slate-200 dark:hover:bg-white/10"
+                    >
+                      −
+                    </button>
+                    <span className="text-sm font-bold w-6 text-center text-slate-800 dark:text-white">{targetReps}</span>
+                    <button
+                      onClick={() => setTargetReps(Math.min(50, targetReps + 1))}
+                      className="w-6 h-6 rounded bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 text-xs flex items-center justify-center hover:bg-slate-200 dark:hover:bg-white/10"
                     >
                       +
                     </button>
@@ -748,7 +878,7 @@ function WorkoutContent() {
 
                 {/* Rest timer */}
                 {isResting ? (
-                  <div className="text-center p-3 rounded-xl bg-amber-50 border border-amber-200">
+                  <div className="text-center p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
                     <p className="text-xs font-semibold text-amber-700 mb-1">REST</p>
                     <p className="text-3xl font-bold text-amber-600 font-mono">{restTimer}s</p>
                     <button
@@ -762,7 +892,7 @@ function WorkoutContent() {
                   <div className="flex gap-2">
                     <button
                       onClick={startRest}
-                      className="flex-1 px-3 py-2 bg-slate-100 text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-200 transition-colors"
+                      className="flex-1 px-3 py-2 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
                     >
                       <Timer size={12} className="inline mr-1" />
                       Rest (30s)
@@ -770,7 +900,7 @@ function WorkoutContent() {
                     <button
                       onClick={nextSet}
                       disabled={currentSet >= totalSets}
-                      className="flex-1 px-3 py-2 bg-maroon-50 text-maroon-700 text-xs font-medium rounded-lg hover:bg-maroon-100 disabled:opacity-30 transition-colors"
+                      className="flex-1 px-3 py-2 bg-maroon-50 dark:bg-maroon-900/20 text-maroon-700 dark:text-maroon-400 text-xs font-medium rounded-lg hover:bg-maroon-100 dark:hover:bg-maroon-900/40 disabled:opacity-30 transition-colors"
                     >
                       Next Set →
                     </button>
@@ -779,27 +909,26 @@ function WorkoutContent() {
               </div>
 
               {/* Voice Toggle */}
-              <div className="glass rounded-2xl p-4">
+              <div className="rounded-2xl p-4 bg-white/80 dark:bg-white/[0.03] backdrop-blur-xl border border-slate-200/60 dark:border-white/[0.06] shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-800">Voice Mode</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Voice Mode</h3>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                       {voiceEnabled ? '"Hey Flex" active' : "Voice disabled"}
                     </p>
                   </div>
                   <button
                     onClick={() => setVoiceEnabled(!voiceEnabled)}
-                    className={`p-2.5 rounded-xl transition-all ${
-                      voiceEnabled
+                    className={`p-2.5 rounded-xl transition-all ${voiceEnabled
                         ? "bg-maroon-700 text-white shadow-lg shadow-maroon-700/30"
-                        : "bg-slate-100 text-slate-400"
-                    }`}
+                        : "bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-500"
+                      }`}
                   >
                     {voiceEnabled ? <Mic size={18} /> : <MicOff size={18} />}
                   </button>
                 </div>
 
-                {/* Talk to Flex button */}
+                {/* Talk to ReMotion button */}
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   className="w-full mt-3 px-4 py-2.5 bg-gradient-to-r from-maroon-600 to-maroon-800 text-white text-sm font-medium rounded-xl shadow-lg shadow-maroon-700/20 hover:shadow-maroon-700/40 transition-all flex items-center justify-center gap-2"
@@ -810,16 +939,15 @@ function WorkoutContent() {
               </div>
 
               {/* Live Metrics */}
-              <div className="glass rounded-2xl p-4">
+              <div className="rounded-2xl p-4 bg-white/80 dark:bg-white/[0.03] backdrop-blur-xl border border-slate-200/60 dark:border-white/[0.06] shadow-sm">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-slate-800">Live Metrics</h3>
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Live Metrics</h3>
                   <button
                     onClick={() => setShowJointAngles(!showJointAngles)}
-                    className={`p-1.5 rounded-lg transition-colors ${
-                      showJointAngles
-                        ? "bg-maroon-50 text-maroon-700"
-                        : "bg-slate-100 text-slate-400"
-                    }`}
+                    className={`p-1.5 rounded-lg transition-colors ${showJointAngles
+                        ? "bg-maroon-50 dark:bg-maroon-900/20 text-maroon-700 dark:text-maroon-400"
+                        : "bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-500"
+                      }`}
                   >
                     {showJointAngles ? <Eye size={14} /> : <EyeOff size={14} />}
                   </button>
@@ -835,16 +963,16 @@ function WorkoutContent() {
                       exit={{ height: 0, opacity: 0 }}
                       className="overflow-hidden"
                     >
-                      <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                      <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-white/[0.06]">
                         {activeExercise.joints.map((j) => (
                           <div
                             key={j.name}
                             className="flex items-center justify-between text-xs"
                           >
-                            <span className="text-slate-600 capitalize">
+                            <span className="text-slate-600 dark:text-slate-400 capitalize">
                               {j.name.replace(/_/g, " ")}
                             </span>
-                            <span className="font-mono text-slate-800">
+                            <span className="font-mono text-slate-800 dark:text-slate-200">
                               {j.idealRange[0]}°–{j.idealRange[1]}°
                             </span>
                           </div>
@@ -856,8 +984,8 @@ function WorkoutContent() {
               </div>
 
               {/* Exercise Info (Mobile) */}
-              <div className="md:hidden glass rounded-2xl p-4">
-                <h3 className="text-sm font-semibold text-slate-800 mb-2">
+              <div className="md:hidden rounded-2xl p-4 bg-white/80 dark:bg-white/[0.03] backdrop-blur-xl border border-slate-200/60 dark:border-white/[0.06] shadow-sm">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">
                   Queue ({activeIndex + 1}/{exerciseQueue.length})
                 </h3>
                 <div className="flex gap-2 overflow-x-auto pb-2">
@@ -868,13 +996,12 @@ function WorkoutContent() {
                         setActiveIndex(i);
                         resetSession();
                       }}
-                      className={`shrink-0 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                        i === activeIndex
+                      className={`shrink-0 px-3 py-2 rounded-xl text-xs font-medium transition-all ${i === activeIndex
                           ? "bg-maroon-700 text-white"
                           : i < activeIndex
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
+                            ? "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20"
+                            : "bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300"
+                        }`}
                     >
                       {ex.name}
                     </button>
@@ -891,14 +1018,16 @@ function WorkoutContent() {
 
 export default function WorkoutPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center h-screen">
-          <div className="animate-spin w-8 h-8 border-3 border-maroon-700 border-t-transparent rounded-full" />
-        </div>
-      }
-    >
-      <WorkoutContent />
-    </Suspense>
+    <ProtectedRoute>
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center h-screen">
+            <div className="animate-spin w-8 h-8 border-3 border-maroon-700 border-t-transparent rounded-full" />
+          </div>
+        }
+      >
+        <WorkoutContent />
+      </Suspense>
+    </ProtectedRoute>
   );
 }

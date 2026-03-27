@@ -1,5 +1,5 @@
-import numpy as np
-from typing import Optional, Tuple, List
+import numpy as np  # type: ignore
+from typing import Any, Optional, Tuple, List
 
 # Pixel distance threshold to flag invalid landmarks that are squished together
 MIN_PX_DISTANCE = 8.0
@@ -23,8 +23,8 @@ def calculate_angle(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> Optional[
 
     return float(angle) if 0.0 <= angle <= 180.0 else None
 
-def validate_landmarks(landmarks, visible_scores: np.ndarray, 
-                       indices: Tuple[int, int, int], 
+def validate_landmarks(landmarks: Any, visible_scores: Any,
+                       indices: Tuple[int, int, int],
                        visibility_threshold: float = 0.65,
                        width: int = 640, height: int = 480) -> Tuple[bool, str]:
     """
@@ -52,7 +52,7 @@ def validate_landmarks(landmarks, visible_scores: np.ndarray,
 
     return True, "ok"
 
-def is_full_body_visible(landmarks, visible_scores: np.ndarray, threshold: float = 0.65) -> bool:
+def is_full_body_visible(landmarks: Any, visible_scores: Any, threshold: float = 0.65) -> bool:
     """
     Checks if core body landmarks (shoulders, hips, knees, ankles) are visible.
     We check both left and right sides. If BOTH sides are entirely occluded, body is not detected.

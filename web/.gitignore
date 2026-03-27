@@ -1,25 +1,31 @@
-# Virtual environments
+# Node
+node_modules/
+.next/
+out/
+
+# Python
 env/
 venv/
 .venv/
 
-# Python cache
+# Cache
 __pycache__/
 *.pyc
 
-# OS files
-.DS_Store
+# Env
+.env
+.env.local
 
 # IDE
 .vscode/
 .idea/
 
-# Env files
-.env
+# OS
+.DS_Store
 
-# Heavy assets (IMPORTANT)
+# Heavy assets
 public/images/
 public/videodemos/
 
-# Optional: logs / temp
+# Logs
 *.log

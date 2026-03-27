@@ -1,294 +1,301 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/context/AuthContext";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import GlassCard from "@/components/ui/GlassCard";
-import StatCard from "@/components/ui/StatCard";
 import {
-  Flame,
-  Target,
-  Zap,
-  TrendingUp,
+  getRecentSessions,
+  getUserProfile,
+  updateUserProfile,
+  WorkoutSession,
+  UserProfile,
+} from "@/lib/userService";
+import {
   Activity,
-  AlertTriangle,
-  Brain,
   Dumbbell,
-  Trophy,
-  BarChart3,
+  X,
+  ChevronRight,
+  Bell,
+  ArrowUpRight,
+  Calendar,
+  Play,
 } from "lucide-react";
+import Link from "next/link";
+import FlexChat from "@/components/dashboard/FlexChat";
+import { GamificationPanel } from "@/components/dashboard/GamificationPanel";
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: (i: number) => ({
+const fadeUp: any = {
+  hidden: { opacity: 0, y: 24 },
+  visible: {
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.08, duration: 0.5, ease: "easeOut" },
-  }),
+    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] },
+  },
 };
-
-// Mock data — will be replaced by real telemetry
-const MOCK = {
-  todayWorkout: "Supported Squat",
-  lastScore: 87,
-  streak: 5,
-  avgAccuracy: 82.4,
-  totalReps: 248,
-  consistencyScore: 78,
-  formImprovement: 12,
-  weakAreas: [
-    { joint: "Right Knee Stability", severity: "high" as const },
-    { joint: "Left Shoulder Flexion", severity: "medium" as const },
-    { joint: "Back Posture (Squats)", severity: "low" as const },
-  ],
-  insights: [
-    { text: "You tend to lean forward during squats — focus on chest-up cue", icon: "⚠️" },
-    { text: "Left-right imbalance detected in knee raises (6° gap)", icon: "📊" },
-    { text: "Your hip extension range improved 14% this week", icon: "🎯" },
-    { text: "Try slowing down your reps for better muscle activation", icon: "💡" },
-  ],
-  recentSessions: [
-    { name: "Standing Sky Reach", score: 92, reps: 20, date: "Today" },
-    { name: "Supported Squat", score: 78, reps: 15, date: "Yesterday" },
-    { name: "Wall Push-ups", score: 88, reps: 18, date: "2 days ago" },
-  ],
-};
-
-function severityColor(s: string) {
-  if (s === "high") return "text-rose-500 bg-rose-50";
-  if (s === "medium") return "text-amber-600 bg-amber-50";
-  return "text-emerald-600 bg-emerald-50";
-}
 
 function scoreColor(s: number) {
-  if (s >= 90) return "text-emerald-600";
-  if (s >= 75) return "text-amber-600";
-  return "text-rose-500";
+  if (s >= 90) return "text-emerald-600 dark:text-emerald-400";
+  if (s >= 75) return "text-amber-600 dark:text-amber-400";
+  return "text-rose-500 dark:text-rose-400";
+}
+function scoreBg(s: number) {
+  if (s >= 90) return "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200/60 dark:border-emerald-700/40";
+  if (s >= 75) return "bg-amber-50 dark:bg-amber-900/20 border-amber-200/60 dark:border-amber-700/40";
+  return "bg-rose-50 dark:bg-rose-900/20 border-rose-200/60 dark:border-rose-700/40";
+}
+
+/* ── Greeting Helper ── */
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function DashboardContent() {
+  const { user } = useAuth();
+  const [sessions, setSessions] = useState<WorkoutSession[]>([]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showNotification, setShowNotification] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchData = async () => {
+      try {
+        const [recentSessions, userProf] = await Promise.all([
+          getRecentSessions(user.uid, 5),
+          getUserProfile(user.uid),
+        ]);
+        setSessions(recentSessions);
+        setProfile(userProf);
+        if (userProf?.hasNewAssignment) {
+          setTimeout(() => setShowNotification(true), 600);
+        }
+      } catch (err) {
+        console.error("Failed to load dashboard data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [user]);
+
+  const displayName = user?.displayName || user?.email?.split("@")[0] || "User";
+  const greeting = getGreeting();
+
+  const dismissNotification = async () => {
+    setShowNotification(false);
+    if (user) {
+      await updateUserProfile(user.uid, { hasNewAssignment: false });
+      setProfile(p => p ? { ...p, hasNewAssignment: false } : p);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="flex items-center justify-center py-32">
+          <div className="text-center">
+            <div className="relative w-12 h-12 mx-auto mb-4">
+              <div className="absolute inset-0 rounded-full border-2 border-maroon-100" />
+              <div className="absolute inset-0 rounded-full border-2 border-maroon-600 border-t-transparent animate-spin" />
+            </div>
+            <p className="text-sm text-slate-500 font-medium">Loading your dashboard...</p>
+            <p className="text-xs text-slate-400 mt-1">Fetching your progress data</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative min-h-screen overflow-hidden">
+      {/* ── Ambient Background Blobs ── */}
+      <div className="ambient-blob w-[500px] h-[500px] bg-maroon-300/40 dark:bg-maroon-900/30 -top-40 -right-40 animate-float-slow" />
+      <div className="ambient-blob w-[400px] h-[400px] bg-rose-200/30 dark:bg-rose-900/20 top-1/3 -left-48 animate-float-medium" />
+      <div className="ambient-blob w-[300px] h-[300px] bg-amber-200/30 dark:bg-amber-900/10 bottom-20 right-1/4 animate-float-slow" style={{ animationDelay: "2s" }} />
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 z-10">
+
+      {/* Flex Chatbot Integration */}
+      <FlexChat />
+
+      {/* ── Premium Notification Toast ── */}
+      <AnimatePresence>
+        {showNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            className="fixed top-4 right-4 sm:top-6 sm:right-6 z-50 w-[calc(100%-2rem)] sm:w-auto sm:max-w-md"
+          >
+            <div className="relative overflow-hidden rounded-2xl shadow-2xl shadow-maroon-600/15 border border-maroon-200/40 dark:border-maroon-900/40">
+              {/* Animated gradient border */}
+              <div className="absolute inset-0 bg-gradient-to-r from-maroon-600 via-rose-500 to-maroon-700 animate-gradient rounded-2xl" />
+              <div className="relative m-[2px] bg-white/90 dark:bg-[#0b0f19]/80 backdrop-blur-2xl rounded-[14px] p-4 sm:p-5">
+                <div className="flex items-start gap-4">
+                  <div className="relative shrink-0">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-maroon-500 to-maroon-700 flex items-center justify-center shadow-lg shadow-maroon-600/20">
+                      <Bell size={20} className="text-white animate-bell" />
+                    </div>
+                    <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white animate-badge" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                      New Recovery Plan Assigned!
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      Your doctor has prescribed a personalized AI-guided exercise plan. Check your Workout Groups to get started.
+                    </p>
+                    <div className="flex items-center gap-2 mt-3">
+                      <Link
+                        href="/workout"
+                        onClick={dismissNotification}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-maroon-600 text-white text-xs font-bold hover:bg-maroon-700 transition-colors shadow-sm"
+                      >
+                        View Plan <ArrowUpRight size={12} />
+                      </Link>
+                      <button
+                        onClick={dismissNotification}
+                        className="text-xs text-slate-400 hover:text-slate-600 font-medium transition-colors px-2 py-1.5"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    onClick={dismissNotification}
+                    className="shrink-0 p-1 rounded-lg text-slate-300 hover:text-slate-500 hover:bg-slate-50 transition-all"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Header ── */}
+      <motion.div
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+        className="relative mb-8 pt-4"
+      >
+        <p className="text-sm text-slate-400 dark:text-slate-400 font-medium mb-1">{greeting},</p>
+        <h1
+          className="text-3xl sm:text-4xl font-bold tracking-tight"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          <span className="text-gradient-maroon">{displayName}</span>
+        </h1>
+        <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm sm:text-base flex items-center gap-2">
+          <Calendar size={14} className="text-slate-400 dark:text-slate-500" />
+          {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+        </p>
+      </motion.div>
+
+      {/* ── 🎮 Gamification Panel ── */}
+      <GamificationPanel />
+
+      {/* ── Recent Sessions ── */}
+      <motion.div
+        variants={fadeUp}
+        initial="hidden"
+        animate="visible"
+        className="relative z-10"
+      >
+        <div className="relative overflow-hidden rounded-3xl p-6 md:p-8 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl border border-white/50 dark:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+          <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent dark:from-white/[0.03] pointer-events-none" />
+          <div className="relative z-10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                <Activity size={16} className="text-maroon-700 dark:text-maroon-400" />
+              </div>
+              <h2 className="font-semibold text-base text-slate-800 dark:text-slate-100">Recent Sessions</h2>
+            </div>
+            {sessions.length > 0 && (
+              <Link href="/workout" className="text-[10px] text-maroon-600 dark:text-maroon-400 font-bold hover:text-maroon-800 transition-colors flex items-center gap-0.5">
+                View All <ChevronRight size={10} />
+              </Link>
+            )}
+          </div>
+          {sessions.length === 0 ? (
+            <div className="text-center py-10">
+              <div className="w-14 h-14 rounded-2xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center mx-auto mb-3 border border-slate-100 dark:border-slate-700">
+                <Play size={22} className="text-maroon-400 translate-x-0.5" />
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-300 font-semibold">No sessions yet</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-xs mx-auto">
+                Complete your first AI-guided exercise to see your history here.
+              </p>
+              <Link
+                href="/workout"
+                className="inline-flex items-center gap-1.5 mt-4 px-5 py-2.5 rounded-xl bg-maroon-600 text-white text-xs font-bold hover:bg-maroon-700 transition-colors shadow-sm shadow-maroon-600/10"
+              >
+                Start First Workout <ArrowUpRight size={12} />
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {sessions.map((session, i) => {
+                const sessionDate = new Date(session.date);
+                const now = new Date();
+                const diffDays = Math.floor(
+                  (now.getTime() - sessionDate.getTime()) / (1000 * 60 * 60 * 24)
+                );
+                let dateLabel = sessionDate.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+                if (diffDays === 0) dateLabel = "Today";
+                else if (diffDays === 1) dateLabel = "Yesterday";
+                else if (diffDays < 7) dateLabel = `${diffDays}d ago`;
+
+                return (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    whileHover={{ scale: 1.01 }}
+                    className="group flex items-center justify-between p-3.5 rounded-xl bg-white/60 dark:bg-slate-800/40 border border-slate-100/80 dark:border-slate-700/50 hover:border-maroon-200/40 dark:hover:border-maroon-500/30 hover:bg-white/80 dark:hover:bg-slate-700/50 transition-all duration-200"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border ${scoreBg(session.score)}`}>
+                        <Dumbbell size={14} className={scoreColor(session.score)} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm text-slate-800 dark:text-slate-100 truncate">
+                          {session.exerciseName}
+                        </p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                          {dateLabel} · {session.reps} reps
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`text-sm font-bold ${scoreColor(session.score)} tabular-nums`}>
+                      {session.score}%
+                    </span>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+          </div>
+        </div>
+      </motion.div>
+    </div>
+    </div>
+  );
 }
 
 export default function DashboardPage() {
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-          Welcome back, <span className="text-gradient-maroon">Darshan</span>
-        </h1>
-        <p className="text-slate-500 mt-1.5 text-sm sm:text-base">
-          Here&apos;s your fitness overview for today
-        </p>
-      </motion.div>
-
-      {/* ── Daily Overview ── */}
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6"
-      >
-        <motion.div custom={0} variants={fadeUp}>
-          <StatCard
-            label="Today's Workout"
-            value={1}
-            suffix=""
-            icon={<Dumbbell size={20} />}
-            color="text-maroon-700"
-          />
-          <p className="text-xs text-slate-500 mt-1 ml-1 truncate">{MOCK.todayWorkout}</p>
-        </motion.div>
-        <motion.div custom={1} variants={fadeUp}>
-          <StatCard
-            label="Last Session Score"
-            value={MOCK.lastScore}
-            suffix="%"
-            icon={<Target size={20} />}
-            color="text-maroon-700"
-          />
-        </motion.div>
-        <motion.div custom={2} variants={fadeUp}>
-          <StatCard
-            label="Day Streak"
-            value={MOCK.streak}
-            suffix=" days"
-            icon={<Flame size={20} />}
-            color="text-amber-600"
-          />
-        </motion.div>
-        <motion.div custom={3} variants={fadeUp}>
-          <StatCard
-            label="Total Reps"
-            value={MOCK.totalReps}
-            icon={<Zap size={20} />}
-            color="text-emerald-600"
-          />
-        </motion.div>
-      </motion.div>
-
-      {/* ── Performance + Scores Row ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 mb-6">
-        {/* Performance Summary */}
-        <motion.div custom={4} variants={fadeUp} initial="hidden" animate="visible" className="lg:col-span-2">
-          <GlassCard className="h-full">
-            <div className="flex items-center gap-2 mb-4">
-              <BarChart3 size={18} className="text-maroon-700" />
-              <h2 className="font-semibold text-lg">Performance Summary</h2>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mb-5">
-              <div>
-                <p className="text-sm text-slate-500 mb-1">Average Accuracy</p>
-                <p className="text-3xl font-bold text-maroon-700">
-                  {MOCK.avgAccuracy}
-                  <span className="text-base font-medium text-slate-400">%</span>
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500 mb-1">Total Reps This Week</p>
-                <p className="text-3xl font-bold text-slate-800">{MOCK.totalReps}</p>
-              </div>
-            </div>
-
-            {/* Weak Areas */}
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
-                Weak Areas
-              </p>
-              <div className="space-y-2">
-                {MOCK.weakAreas.map((area, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 + i * 0.1 }}
-                    className="flex items-center gap-2.5"
-                  >
-                    <AlertTriangle size={14} className={severityColor(area.severity).split(" ")[0]} />
-                    <span className="text-sm text-slate-700">{area.joint}</span>
-                    <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${severityColor(
-                        area.severity
-                      )}`}
-                    >
-                      {area.severity.toUpperCase()}
-                    </span>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          </GlassCard>
-        </motion.div>
-
-        {/* Consistency + Form Scores */}
-        <motion.div custom={5} variants={fadeUp} initial="hidden" animate="visible">
-          <div className="space-y-4 h-full flex flex-col">
-            <GlassCard className="flex-1">
-              <div className="flex items-center gap-2 mb-3">
-                <Trophy size={18} className="text-amber-500" />
-                <h3 className="font-semibold">Consistency Score</h3>
-              </div>
-              <div className="relative w-28 h-28 mx-auto mb-2">
-                <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="#f1f5f9" strokeWidth="8" />
-                  <motion.circle
-                    cx="50"
-                    cy="50"
-                    r="42"
-                    fill="none"
-                    stroke="#cc2952"
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={`${2 * Math.PI * 42}`}
-                    initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
-                    animate={{
-                      strokeDashoffset:
-                        2 * Math.PI * 42 * (1 - MOCK.consistencyScore / 100),
-                    }}
-                    transition={{ duration: 1.5, ease: "easeOut" }}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-maroon-700">
-                    {MOCK.consistencyScore}%
-                  </span>
-                </div>
-              </div>
-            </GlassCard>
-
-            <GlassCard className="flex-1">
-              <div className="flex items-center gap-2 mb-3">
-                <TrendingUp size={18} className="text-emerald-500" />
-                <h3 className="font-semibold">Form Improvement</h3>
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-4xl font-bold text-emerald-600">
-                  +{MOCK.formImprovement}%
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">vs. last week</p>
-            </GlassCard>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* ── AI Insights + Recent Sessions ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
-        {/* AI Insights */}
-        <motion.div custom={6} variants={fadeUp} initial="hidden" animate="visible">
-          <GlassCard>
-            <div className="flex items-center gap-2 mb-4">
-              <Brain size={18} className="text-maroon-700" />
-              <h2 className="font-semibold text-lg">AI Insights</h2>
-            </div>
-            <div className="space-y-3">
-              {MOCK.insights.map((insight, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + i * 0.1 }}
-                  className="flex items-start gap-3 p-3 rounded-xl bg-maroon-50/50 border border-maroon-100/50"
-                >
-                  <span className="text-lg shrink-0 mt-0.5">{insight.icon}</span>
-                  <p className="text-sm text-slate-700 leading-relaxed">
-                    {insight.text}
-                  </p>
-                </motion.div>
-              ))}
-            </div>
-          </GlassCard>
-        </motion.div>
-
-        {/* Recent Sessions */}
-        <motion.div custom={7} variants={fadeUp} initial="hidden" animate="visible">
-          <GlassCard>
-            <div className="flex items-center gap-2 mb-4">
-              <Activity size={18} className="text-maroon-700" />
-              <h2 className="font-semibold text-lg">Recent Sessions</h2>
-            </div>
-            <div className="space-y-3">
-              {MOCK.recentSessions.map((session, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 + i * 0.12 }}
-                  className="flex items-center justify-between p-3.5 rounded-xl bg-white/60 border border-slate-100 hover:border-maroon-200/50 transition-colors"
-                >
-                  <div>
-                    <p className="font-medium text-sm text-slate-800">{session.name}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {session.date} · {session.reps} reps
-                    </p>
-                  </div>
-                  <div className={`text-lg font-bold ${scoreColor(session.score)}`}>
-                    {session.score}%
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </GlassCard>
-        </motion.div>
-      </div>
-    </div>
+    <ProtectedRoute>
+      <DashboardContent />
+    </ProtectedRoute>
   );
 }

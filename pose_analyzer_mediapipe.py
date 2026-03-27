@@ -4,10 +4,10 @@ Uses MediaPipe's native draw_landmarks() with DrawingSpec for accurate bilateral
 All 33 landmarks | Per-connection color control | Strict bilateral form analysis
 """
 
-import numpy as np
-import cv2
-from typing import Dict, Optional, Tuple
-import mediapipe as mp
+import numpy as np  # type: ignore
+import cv2  # type: ignore
+from typing import Any, Dict, List, Optional, Tuple
+import mediapipe as mp  # type: ignore
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Landmark Side Classification (MediaPipe 33-point model)
@@ -71,8 +71,8 @@ class MediaPipePoseAnalyzer:
         # Cumulative session stats
         self.frame_count   = 0
         self.correct_frames = 0
-        self.left_stats    = {"correct": 0, "total": 0}
-        self.right_stats   = {"correct": 0, "total": 0}
+        self.left_stats: Dict[str, int]    = {"correct": 0, "total": 0}
+        self.right_stats: Dict[str, int]   = {"correct": 0, "total": 0}
         
         # Rep Tracking & Hysteresis
         self.rep_count = 0
@@ -103,7 +103,7 @@ class MediaPipePoseAnalyzer:
     # Landmark Validation
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _validate(self, landmarks, vis: np.ndarray,
+    def _validate(self, landmarks: Any, vis: Any,
                   indices: Tuple[int, int, int]) -> Tuple[bool, str]:
         """Return (is_valid, reason_string)."""
         for idx in indices:
@@ -130,14 +130,14 @@ class MediaPipePoseAnalyzer:
     # Per-side Analysis
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _analyze_side(self, landmarks, vis: np.ndarray,
-                      side_standards: Dict, side_label: str,
-                      W: int, H: int) -> Tuple[Dict, bool, bool]:
+    def _analyze_side(self, landmarks: Any, vis: Any,
+                      side_standards: Dict[str, Any], side_label: str,
+                      W: int, H: int) -> Tuple[Dict[str, Any], bool, bool]:
         """
         Returns (joint_results, all_correct, any_valid).
         joint_results keys are joint names; each value carries angle, correctness, etc.
         """
-        joint_results = {}
+        joint_results: Dict[str, Any] = {}
         all_correct   = True
         any_valid     = False
 
@@ -204,13 +204,13 @@ class MediaPipePoseAnalyzer:
     # Main Exercise Analysis Entry Point
     # ─────────────────────────────────────────────────────────────────────────
 
-    def analyze_exercise(self, landmarks, vis: np.ndarray,
-                         exercise_data: Dict, W: int, H: int) -> Dict:
+    def analyze_exercise(self, landmarks: Any, vis: Any,
+                         exercise_data: Dict[str, Any], W: int, H: int) -> Dict[str, Any]:
         """
         Analyzes left, right, and/or both sides.
         Returns full results dict including accuracy_percentage.
         """
-        results = {
+        results: Dict[str, Any] = {
             "left_side": {}, "right_side": {}, "both_sides": {},
             "overall_correct": False,
             "sides_status": {"left": None, "right": None, "both": None},
@@ -218,7 +218,8 @@ class MediaPipePoseAnalyzer:
             "accuracy_percentage": 0.0
         }
 
-        required = valid = 0
+        required: int = 0
+        valid: int = 0
         all_ok   = True
 
         # ── LEFT ──
@@ -321,7 +322,7 @@ class MediaPipePoseAnalyzer:
     # Statistics
     # ─────────────────────────────────────────────────────────────────────────
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> Dict[str, Any]:
         def pct(n, d):
             return n / d * 100 if d > 0 else 0.0
 
@@ -340,8 +341,8 @@ class MediaPipePoseAnalyzer:
     def reset_statistics(self):
         self.frame_count    = 0
         self.correct_frames = 0
-        self.left_stats     = {"correct": 0, "total": 0}
-        self.right_stats    = {"correct": 0, "total": 0}
+        self.left_stats: Dict[str, int]     = {"correct": 0, "total": 0}
+        self.right_stats: Dict[str, int]    = {"correct": 0, "total": 0}
         self.rep_count = 0
         self.is_in_rep_zone = False
 
@@ -349,7 +350,7 @@ class MediaPipePoseAnalyzer:
     # MediaPipe Native DrawingSpec Builder
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _build_drawing_specs(self, joint_results: Dict):
+    def _build_drawing_specs(self, joint_results: Dict[str, Any]) -> Any:
         """
         Builds per-landmark and per-connection DrawingSpec dicts using
         MediaPipe's native API.  Returns (landmark_spec_dict, connection_spec_dict).
@@ -407,12 +408,12 @@ class MediaPipePoseAnalyzer:
 
             if s_left or e_left:
                 # Left-side connection
-                wrong = (s in left_wrong) or (e in left_wrong)
+                wrong = (s in left_wrong) or (e in left_wrong)  # type: ignore[operator]
                 color = COLOR_LEFT_WRONG if wrong else COLOR_LEFT_CORRECT
                 thick = 3
             elif s_right or e_right:
                 # Right-side connection
-                wrong = (s in right_wrong) or (e in right_wrong)
+                wrong = (s in right_wrong) or (e in right_wrong)  # type: ignore[operator]
                 color = COLOR_RIGHT_WRONG if wrong else COLOR_RIGHT_CORRECT
                 thick = 3
             else:
@@ -424,7 +425,7 @@ class MediaPipePoseAnalyzer:
 
         return lm_spec, conn_spec
 
-    def _draw_vertical_bar(self, frame: np.ndarray, x: int, y: int, bar_w: int, bar_h: int, pct: float, label: str):
+    def _draw_vertical_bar(self, frame: Any, x: int, y: int, bar_w: int, bar_h: int, pct: float, label: str) -> None:
         """Draws a premium vertical progress bar with Red->Yellow->Green color scaling."""
         cv2.rectangle(frame, (x, y), (x + bar_w, y + bar_h), (40, 40, 40), -1)
         cv2.rectangle(frame, (x, y), (x + bar_w, y + bar_h), (200, 200, 200), 1)
@@ -458,7 +459,7 @@ class MediaPipePoseAnalyzer:
     # HUD Overlay
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _draw_hud(self, frame: np.ndarray, results: Dict, exercise_name: str):
+    def _draw_hud(self, frame: Any, results: Dict[str, Any], exercise_name: str) -> None:
         """Draws header, accuracy%, side percentages, and correction cues."""
         h, w = frame.shape[:2]
 
@@ -479,7 +480,8 @@ class MediaPipePoseAnalyzer:
         # ── Header bar ──────────────────────────────────────────────────────
         cv2.rectangle(frame, (0, 0), (w, 78), (25, 25, 25), -1)
 
-        ex_title = exercise_name.replace("_", " ").title()[:38]
+        ex_title_full: str = exercise_name.replace("_", " ").title()
+        ex_title: str = ex_title_full[0:38] if len(ex_title_full) > 38 else ex_title_full  # type: ignore[no-matching-overload]
         cv2.putText(frame, ex_title, (12, 30),
                     cv2.FONT_HERSHEY_DUPLEX, 0.70, (255, 255, 255), 2)
 
@@ -544,7 +546,7 @@ class MediaPipePoseAnalyzer:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.48, (200, 200, 200), 1)
 
         # ── Correction cues (bottom bar) ─────────────────────────────────────
-        all_results = {}
+        all_results: Dict[str, Any] = {}
         all_results.update(results.get("left_side",  {}))
         all_results.update(results.get("right_side", {}))
         all_results.update(results.get("both_sides", {}))
@@ -559,7 +561,7 @@ class MediaPipePoseAnalyzer:
             cv2.rectangle(frame, (0, fb_y), (w, h), (25, 25, 25), -1)
             cv2.putText(frame, "CORRECT:", (12, fb_y + 18),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.52, (255, 255, 255), 2)
-            for i, (_, r) in enumerate(wrong[:2]):
+            for i, (_, r) in enumerate(wrong[:2]):  # type: ignore[misc]
                 cv2.putText(frame, r["feedback"][:70],
                             (12, fb_y + 40 + i * 23),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.46, (100, 210, 255), 1)
@@ -568,9 +570,9 @@ class MediaPipePoseAnalyzer:
     # Public Draw Method  (called from main)
     # ─────────────────────────────────────────────────────────────────────────
 
-    def draw_feedback(self, frame: np.ndarray, results: Dict,
-                      pose_landmarks,   # NormalizedLandmarkList (full object)
-                      exercise_name: str) -> np.ndarray:
+    def draw_feedback(self, frame: Any, results: Dict[str, Any],
+                      pose_landmarks: Any,   # NormalizedLandmarkList (full object)
+                      exercise_name: str) -> Any:
         """
         Draws bilateral skeleton via MediaPipe native draw_landmarks() +
         custom color specs, then overlays HUD.
@@ -589,7 +591,7 @@ class MediaPipePoseAnalyzer:
             return annotated
 
         # Collect all joint results for color building
-        all_results = {}
+        all_results: Dict[str, Any] = {}
         all_results.update(results.get("left_side",  {}))
         all_results.update(results.get("right_side", {}))
         all_results.update(results.get("both_sides", {}))

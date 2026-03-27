@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ClientLayout from "@/components/layout/ClientLayout";
+import { ThemeProvider } from "@/components/ui/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "FLEX — AI Physiotherapy Coach",
+  title: "ReMotion — AI Physiotherapy Coach",
   description:
     "Premium AI-powered physiotherapy assistant with real-time pose tracking, personalized coaching, and performance analytics.",
 };
@@ -14,7 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
@@ -27,8 +28,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased min-h-screen bg-slate-50">
-        <ClientLayout>{children}</ClientLayout>
+      <body className="antialiased min-h-screen bg-slate-50 dark:bg-[#0f1319] text-slate-900 dark:text-slate-100 transition-colors duration-300" suppressHydrationWarning>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ClientLayout>{children}</ClientLayout>
+        </ThemeProvider>
       </body>
     </html>
   );

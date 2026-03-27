@@ -4,10 +4,10 @@ import queue
 import time
 import asyncio
 import tempfile
-import edge_tts
-import pygame
-import requests
-from dotenv import load_dotenv
+import edge_tts # type: ignore
+import pygame # type: ignore
+import requests # type: ignore
+from dotenv import load_dotenv # type: ignore
 
 HAS_DEEPGRAM = True  # We will use native requests instead of the SDK
 

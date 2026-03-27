@@ -3,10 +3,10 @@ MediaPipe Physiotherapy Standards — POST DISCHARGE EDITION
 Consolidated from modular files to support all exercises.
 """
 
-from exercises.exercises_sitting import EXERCISES as sitting_exercises
-from exercises.exercises_mobility import EXERCISES as mobility_exercises
-from exercises.exercises_functional import EXERCISES as functional_exercises
-from exercises.exercises_standing import EXERCISES as standing_exercises
+from exercises.exercises_sitting import EXERCISES as sitting_exercises # type: ignore
+from exercises.exercises_mobility import EXERCISES as mobility_exercises # type: ignore
+from exercises.exercises_functional import EXERCISES as functional_exercises # type: ignore
+from exercises.exercises_standing import EXERCISES as standing_exercises # type: ignore
 
 # ─────────────────────────────────────────────
 # MediaPipe Landmark Map (reference only)

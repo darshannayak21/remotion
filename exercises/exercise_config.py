@@ -235,6 +235,7 @@ EXERCISE_CONFIG = {
     },
     
     "wall_sit": {
+        "is_hold_based": True,
         "intro": [
             "Perfect. For the wall sit, bend your knees to ninety degrees and press your entire back flat against the wall."
         ],
@@ -482,5 +483,230 @@ EXERCISE_CONFIG = {
                 ]
             }
         }
+    },
+
+    # ─────────────────────────────────────────────────────────────
+    # EARLY REHAB / SEATED EXERCISES
+    # ─────────────────────────────────────────────────────────────
+
+    "seated_knee_extension": {
+        "intro": [
+            "I can see you clearly. Let's start with seated knee extensions. Sit yourself tall on a chair with your feet flat on the floor. Keep your thigh firmly pressed against the seat. Now slowly straighten one leg out in front of you until it's completely locked straight. This is one of the best exercises for waking up your quadriceps after surgery or bed rest.",
+            "Perfect position. For this exercise, I need you to sit up nice and tall with good posture. Keep your back against the chair. Now extend one knee fully, pushing your heel away from you until the leg is completely straight. Hold for a second at the top, then lower it slowly. No dropping it."
+        ],
+        "left": {
+            "knee_extension": {
+                "ideal_range": (165, 180),
+                "keypoints": (23, 25, 27),
+                "cues": [
+                    "Your left leg is not fully straight yet. I need you to push your foot out further and really lock that knee out completely.",
+                    "You are stopping short on the left side. Squeeze your quadricep hard and straighten that leg all the way until the knee is fully extended.",
+                    "I can see your left knee still has a bend in it. Really push through and extend it completely. Imagine you are trying to kick something far away.",
+                    "Almost there with the left leg. Just push through the last few degrees and lock it out tight."
+                ]
+            }
+        },
+        "right": {
+            "knee_extension": {
+                "ideal_range": (165, 180),
+                "keypoints": (24, 26, 28),
+                "cues": [
+                    "Your right knee is not extending all the way. Push your foot out further and squeeze your quad to fully lock that knee.",
+                    "You are cutting the movement short on the right side. I need to see a perfectly straight leg at the top.",
+                    "Straighten your right knee completely. Squeeze that quadricep muscle hard at the top and hold it for a beat.",
+                    "Your right leg has a noticeable bend still. Push through the full range of motion and fully extend it."
+                ]
+            }
+        }
+    },
+
+    "straight_leg_raise": {
+        "intro": [
+            "Now we are doing straight leg raises. This is excellent for your hip flexors and quad activation. Keep your knee completely locked and straight throughout the entire movement. Slowly lift the leg upward toward the ceiling. Control it on the way back down too, do not just drop it.",
+            "Alright, straight leg raises. Lie on your back or sit back with support. Lock your knee out fully, then lift that entire leg straight up as one solid unit. The key here is to keep the knee locked the whole time. If it bends, you are losing the benefit. Slow and controlled."
+        ],
+        "left": {
+            "hip_flexion": {
+                "ideal_range": (120, 155),
+                "keypoints": (11, 23, 25),
+                "cues": [
+                    "Your left leg is not coming up high enough. Keep that knee locked tight and lift the whole leg higher from the hip.",
+                    "I need more height on the left side. Squeeze your quad to keep it straight and lift from your hip joint.",
+                    "You are barely lifting your left leg off the surface. Push through the hip and raise it higher while keeping the knee completely stiff.",
+                    "Try to bring your left leg up a good bit more. Think about reaching your heel toward the ceiling."
+                ]
+            }
+        },
+        "right": {
+            "hip_flexion": {
+                "ideal_range": (120, 155),
+                "keypoints": (12, 24, 26),
+                "cues": [
+                    "Your right leg needs to come up higher. Keep that knee perfectly locked and lift from the hip joint.",
+                    "Not high enough on the right side. Squeeze your quad hard and raise the whole leg toward the ceiling.",
+                    "Lift your right leg higher. I can see it hovering too low. Push through the hip and bring it up confidently.",
+                    "More height on your right leg. Think about keeping it as stiff as a board and lifting the whole thing upward."
+                ]
+            }
+        }
+    },
+
+    "sit_to_stand": {
+        "intro": [
+            "Great, let's do sit-to-stand. This is one of the most important functional exercises in rehabilitation. Start by sitting in a chair with your feet flat on the floor about shoulder-width apart. Lean your chest forward slightly, then drive through your heels to stand up. Try not to use your hands at all. Then sit back down slowly with control, do not just plop down.",
+            "We are going to practice getting up from a chair. This builds real-world leg strength that you use every single day. Sit tall, shift your weight forward over your feet, and push up to standing without using your arms. Then lower yourself back down slowly. The slower you go, the more your legs are working."
+        ],
+        "both": {
+            "knee_bend_left": {
+                "ideal_range": (70, 110),
+                "keypoints": (23, 25, 27),
+                "cues": [
+                    "You are not going low enough when you sit down. I need you to lower all the way until your bottom touches the chair. Control the descent.",
+                    "Your left knee is not bending deep enough. Sit all the way back down into the chair before standing back up. Get that full range.",
+                    "Slow down the sitting portion. Bend your knees much deeper and lower yourself with control instead of dropping quickly.",
+                    "You are barely bending on the way down. I need to see a much deeper knee bend as you lower into the seat."
+                ]
+            },
+            "knee_bend_right": {
+                "ideal_range": (70, 110),
+                "keypoints": (24, 26, 28),
+                "cues": [
+                    "Your right side is cutting the movement short. Sit all the way back down to the chair before standing again.",
+                    "Bend your right knee more as you lower into the chair. You are barely going down before popping back up.",
+                    "I can see your right knee is not reaching the proper depth. Really sit back into that chair fully before you stand.",
+                    "Take your time lowering down on the right side. Bend deeper into the chair to get the most out of this exercise."
+                ]
+            }
+        }
+    },
+
+    # ─────────────────────────────────────────────────────────────
+    # FUNCTIONAL STRENGTH & BALANCE (ADVANCED REHAB)
+    # ─────────────────────────────────────────────────────────────
+
+    "forward_lunge": {
+        "intro": [
+            "Let's move to forward lunges. This is an excellent exercise for building quad strength, glute power, and knee stability. Stand sideways to the camera with your feet together. Step one foot forward and lower your body until your front knee bends to about ninety degrees. Keep your chest up tall and your core tight throughout the entire movement. Push back to the starting position through your front heel.",
+            "Time for lunges. Stand nice and tall, take a big step forward, and lower your back knee toward the ground. Your front thigh should end up roughly parallel with the floor. Make sure your front knee stays right above your ankle and does not shoot past your toes. Push back up with power."
+        ],
+        "left": {
+            "front_knee_angle": {
+                "ideal_range": (70, 115),
+                "keypoints": (23, 25, 27),
+                "cues": [
+                    "Your left knee is not bending deep enough in the lunge. Drop your hips lower until your left thigh is closer to parallel with the floor.",
+                    "Sink deeper into the left lunge. I can see you are staying too high. Really bend that front knee and lower your center of gravity.",
+                    "Bend your left knee more aggressively. You are barely dropping into the lunge position. Get your thigh parallel to the ground.",
+                    "Not deep enough on the left side. Take a slightly bigger step and really drop your weight down into the lunge."
+                ]
+            }
+        },
+        "right": {
+            "front_knee_angle": {
+                "ideal_range": (70, 115),
+                "keypoints": (24, 26, 28),
+                "cues": [
+                    "Your right knee needs to bend further into the lunge. Drop your hips lower and really sink into the movement.",
+                    "Sink deeper on the right side. I need to see your right thigh closer to parallel with the floor.",
+                    "You are not hitting enough depth on the right lunge. Bend that front knee more and lower your hips toward the ground.",
+                    "Step further forward with your right foot and really commit to dropping low into the lunge. Much more knee bend needed."
+                ]
+            }
+        }
+    },
+
+    "side_lunge": {
+        "intro": [
+            "Side lunges now. This exercise strengthens your inner thighs, hips, and builds lateral stability that is critical for daily movement and fall prevention. Face the camera, then step one foot out wide to the side. Bend the stepping knee and sit your hips back as if you are sitting into a chair on one side. Keep the other leg straight. Push back to center when you are ready.",
+            "Let's work on lateral strength with side lunges. Step wide to one side, bend that knee, and push your hips back behind you. Your weight should be loaded into the bent leg. The straight leg should stay fully extended with the foot flat on the floor. This builds hip strength and improves your lateral movement."
+        ],
+        "left": {
+            "knee_bend": {
+                "ideal_range": (85, 130),
+                "keypoints": (23, 25, 27),
+                "cues": [
+                    "Bend your left knee much deeper into the side lunge. You are barely lowering your hips. Sit back and load into that left leg.",
+                    "Your left side lunge is too shallow. I need to see a much bigger knee bend with your hips pushed back behind you.",
+                    "Drop lower on the left side. Push your hips back and really bend that left knee like you are sitting into a chair sideways.",
+                    "You are staying too upright in the left side lunge. Send your hips back and bend the knee much deeper."
+                ]
+            }
+        },
+        "right": {
+            "knee_bend": {
+                "ideal_range": (85, 130),
+                "keypoints": (24, 26, 28),
+                "cues": [
+                    "Your right knee is not bending enough in the side lunge. Drop your hips lower and sit deeper into the right leg.",
+                    "Push your hips back further and bend your right knee more. I can tell you are not loading the right leg properly.",
+                    "Go much lower on the right side. Send your hips back and bend deep into that right knee to really feel the glutes working.",
+                    "Your right side lunge needs more depth. Think about sitting into a low chair on your right side."
+                ]
+            }
+        }
+    },
+
+    "step_back_knee_drive": {
+        "intro": [
+            "Step back knee drives are next. This exercise is fantastic for building balance, hip flexor strength, and coordination. Face the camera and stand tall. Step one leg backward behind you, then immediately drive that same knee forward and up toward your chest. Focus on keeping your balance on the standing leg. Control the movement, do not rush it.",
+            "This one really challenges your balance and hip strength. You are going to step one foot behind you, then snap that same knee forward and up to waist height. Keep your core tight and your standing leg stable throughout. Think about pulling the knee up with your hip flexor muscles."
+        ],
+        "left": {
+            "knee_drive": {
+                "ideal_range": (60, 110),
+                "keypoints": (23, 25, 27),
+                "cues": [
+                    "Drive your left knee much higher after the step back. I need to see it come up to at least waist level. Really push it up with power.",
+                    "Your left knee drive is coming up way too low. Squeeze your hip flexor and bring that knee up toward your chest.",
+                    "Lift your left knee higher on the return. You are barely raising it. Think about pulling your knee up as if something is pushing your thigh from below.",
+                    "Not enough height on the left knee drive. Really snap that knee upward with purpose and conviction."
+                ]
+            }
+        },
+        "right": {
+            "knee_drive": {
+                "ideal_range": (60, 110),
+                "keypoints": (24, 26, 28),
+                "cues": [
+                    "Drive your right knee significantly higher. I need to see it at waist level or above when you bring it forward.",
+                    "Your right knee is not coming up high enough after the step back. Really explode that knee upward with your hip flexor.",
+                    "More power on the right knee drive. Bring it up to your chest level and hold it there for a split second.",
+                    "Your right side knee drive is too low. Focus on snapping that knee up high and controlled."
+                ]
+            }
+        }
+    },
+
+    "single_leg_hip_hinge_supported": {
+        "intro": [
+            "Let's finish with the single leg hip hinge. This is one of the best functional rehab movements for your glutes and hamstrings. Hold a chair lightly with one hand for balance. Stand on one leg, then slowly hinge forward at the hip, sending your other leg behind you and your torso forward. Keep your back completely flat throughout the movement. Do not round your spine at all. Return to standing slowly.",
+            "Single leg hip hinge with support. This targets the entire back of your body, your glutes, hamstrings, and lower back. Stand on one leg while lightly holding a chair. Hinge forward from the hip joint while keeping your back perfectly straight and flat. Imagine your body is a seesaw balanced on your standing hip. Go as far forward as you can without rounding your back, then come back up slowly."
+        ],
+        "left": {
+            "hip_hinge": {
+                "ideal_range": (95, 140),
+                "keypoints": (11, 23, 25),
+                "cues": [
+                    "Hinge forward more from your left hip. You are standing way too upright. Push your hips back and let your torso tilt forward while keeping your back flat.",
+                    "I am not seeing enough forward lean on the left side. Push your hips back behind you and let your upper body come forward naturally.",
+                    "You need a deeper hinge on the left. Think about trying to make your torso parallel with the floor eventually. Keep pushing those hips back.",
+                    "Your left hip hinge is too shallow. Send your hips further back and bend forward from the hip joint, not from your back."
+                ]
+            }
+        },
+        "right": {
+            "hip_hinge": {
+                "ideal_range": (95, 140),
+                "keypoints": (12, 24, 26),
+                "cues": [
+                    "Hinge forward more from your right hip. You are barely tilting forward. Push your hips back and lean your torso forward with a flat back.",
+                    "More forward lean needed on the right side. Think about pushing your hips as far back as possible while keeping your spine perfectly straight.",
+                    "Deeper hinge on the right please. Keep that back completely flat and hinge further from the hip joint until you feel a stretch in your hamstring.",
+                    "You are not getting enough depth on the right hip hinge. Send your right hip back further and allow your torso to come forward naturally."
+                ]
+            }
+        }
     }
 }
+
+

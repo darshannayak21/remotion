@@ -1,9 +1,9 @@
 import threading
 import time
-from typing import Callable
+from typing import Callable, Any
 
 try:
-    import speech_recognition as sr
+    import speech_recognition as sr # type: ignore
     HAS_SR = True
 except ImportError:
     HAS_SR = False
@@ -17,8 +17,8 @@ class WakeWordEngine:
     def __init__(self, callback: Callable):
         self.callback = callback
         self.is_listening = False
-        self.recognizer = None
-        self.mic = None
+        self.recognizer: Any = None
+        self.mic: Any = None
         self.stop_listening_fn = None
 
     def get_correct_mic_index(self):
@@ -43,8 +43,10 @@ class WakeWordEngine:
 
         try:
             self.recognizer = sr.Recognizer()
-            self.recognizer.energy_threshold = 300 # Dynamic adjusts later
-            self.recognizer.dynamic_energy_threshold = True
+            self.recognizer.pause_threshold = 1.0 # type: ignore
+            self.recognizer.energy_threshold = 400 # type: ignore
+            self.recognizer.dynamic_energy_threshold = True # type: ignore
+            self.recognizer.dynamic_energy_ratio = 2.0 # type: ignore
 
             mic_index = self.get_correct_mic_index()
             self.mic = sr.Microphone(device_index=mic_index)
@@ -68,7 +70,7 @@ class WakeWordEngine:
     def stop(self):
         self.is_listening = False
         if self.stop_listening_fn:
-            self.stop_listening_fn(wait_for_stop=False)
+            self.stop_listening_fn(wait_for_stop=False) # type: ignore
 
     def _audio_callback(self, recognizer, audio):
         if not self.is_listening:

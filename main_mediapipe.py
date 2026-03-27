@@ -5,13 +5,14 @@ MediaPipe Physiotherapy System - POST-DISCHARGE EDITION
 - Real-time Angle Feedback
 """
 
-import cv2
-import mediapipe as mp
-import numpy as np
+import cv2  # type: ignore
+import mediapipe as mp  # type: ignore
+import numpy as np  # type: ignore
 import time
 import sys
-from pose_analyzer_mediapipe import MediaPipePoseAnalyzer
-from exercises.exercise_standards_mediapipe import EXERCISE_STANDARDS, EXERCISE_CATEGORIES
+from typing import Any
+from pose_analyzer_mediapipe import MediaPipePoseAnalyzer  # type: ignore
+from exercises.exercise_standards_mediapipe import EXERCISE_STANDARDS, EXERCISE_CATEGORIES  # type: ignore
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -47,10 +48,10 @@ class MediaPipePhysiotherapySystem:
         print("=" * 79)
 
         # ── MediaPipe Pose setup ──────────────────────────────────────────────
-        self.mp_pose    = mp.solutions.pose
+        self.mp_pose    = mp.solutions.pose  # type: ignore
 
         print(f"\n  [·] Loading MediaPipe Pose (Complexity={model_complexity} - High Accuracy)")
-        self.pose = self.mp_pose.Pose(
+        self.pose = self.mp_pose.Pose(  # type: ignore
             static_image_mode        = False,
             model_complexity         = model_complexity, # Enforced high accuracy
             smooth_landmarks         = True,
@@ -110,26 +111,26 @@ class MediaPipePhysiotherapySystem:
     # ─────────────────────────────────────────────────────────────────────────
     # Frame Processing
     # ─────────────────────────────────────────────────────────────────────────
-    def process_frame(self, frame: np.ndarray) -> np.ndarray:
+    def process_frame(self, frame: Any) -> Any:
         """
         Processes one BGR frame.
         """
         # Convert to RGB for MediaPipe
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        rgb.flags.writeable = False
-        mp_results = self.pose.process(rgb)
-        rgb.flags.writeable = True
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # type: ignore
+        rgb.flags.writeable = False  # type: ignore
+        mp_results = self.pose.process(rgb)  # type: ignore
+        rgb.flags.writeable = True  # type: ignore
 
         annotated = frame.copy()
         h, w = frame.shape[:2]
 
-        if mp_results.pose_landmarks:
+        if mp_results.pose_landmarks:  # type: ignore
             # ── Unpacked list  → angle math ───────────────────────────────────
-            landmarks   = mp_results.pose_landmarks.landmark
-            vis_scores  = np.array([lm.visibility for lm in landmarks])
+            landmarks   = mp_results.pose_landmarks.landmark  # type: ignore
+            vis_scores  = np.array([lm.visibility for lm in landmarks])  # type: ignore
 
             # ── Full object  → MediaPipe draw_landmarks() ────────────────────
-            pose_landmarks = mp_results.pose_landmarks
+            pose_landmarks = mp_results.pose_landmarks  # type: ignore
 
             # Analyse form
             analysis = self.analyzer.analyze_exercise(
@@ -146,10 +147,10 @@ class MediaPipePhysiotherapySystem:
 
         else:
             # No person detected overlay
-            cv2.rectangle(annotated, (0, 0), (w, 115), (20, 20, 20), -1)
-            cv2.putText(annotated, "NO PERSON DETECTED",
+            cv2.rectangle(annotated, (0, 0), (w, 115), (20, 20, 20), -1)  # type: ignore
+            cv2.putText(annotated, "NO PERSON DETECTED",  # type: ignore
                         (20, 50), cv2.FONT_HERSHEY_DUPLEX, 0.9, (0, 50, 255), 2)
-            cv2.putText(annotated, "Please step into typical webcam view range",
+            cv2.putText(annotated, "Please step into typical webcam view range",  # type: ignore
                         (20, 85), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (180, 180, 180), 1)
 
         # ── FPS counter (bottom-right) ────────────────────────────
@@ -161,7 +162,7 @@ class MediaPipePhysiotherapySystem:
             self.fps_history.pop(0)
         avg_fps = sum(self.fps_history) / len(self.fps_history)
 
-        cv2.putText(annotated, f"FPS: {avg_fps:.0f}",
+        cv2.putText(annotated, f"FPS: {avg_fps:.0f}",  # type: ignore
                     (w - 80, h - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100, 100, 100), 1)
 
@@ -172,7 +173,7 @@ class MediaPipePhysiotherapySystem:
     # ─────────────────────────────────────────────────────────────────────────
     def run_webcam(self, camera_id: int = 0):
         """Opens webcam and runs the live monitoring loop."""
-        cap = cv2.VideoCapture(camera_id)
+        cap = cv2.VideoCapture(camera_id)  # type: ignore
         if not cap.isOpened():
             raise RuntimeError(
                 f"Cannot open camera {camera_id}. "
@@ -180,18 +181,18 @@ class MediaPipePhysiotherapySystem:
             )
 
         # Try to set reasonable resolution for performance vs accuracy
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH,  1280)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        cap.set(cv2.CAP_PROP_FPS,          30)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH,  1280)  # type: ignore
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)  # type: ignore
+        cap.set(cv2.CAP_PROP_FPS,          30)  # type: ignore
 
         # Confirm actual resolution
-        actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))  # type: ignore
+        actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))  # type: ignore
         print(f"  [✓] Camera opened: {actual_w}×{actual_h}\n")
 
-        paused       = False
-        frame_errors = 0
-        MAX_ERRORS   = 10
+        paused: bool           = False
+        frame_errors: int      = 0
+        MAX_ERRORS: int        = 10
 
         print("  [►] Monitoring started...\n")
 
@@ -200,7 +201,7 @@ class MediaPipePhysiotherapySystem:
                 ret, frame = cap.read()
 
                 if not ret:
-                    frame_errors += 1
+                    frame_errors += 1  # type: ignore[operator]
                     print(f"  [!] Frame read error ({frame_errors}/{MAX_ERRORS})")
                     if frame_errors >= MAX_ERRORS:
                         print("  [✗] Too many errors — stopping.")
@@ -211,10 +212,10 @@ class MediaPipePhysiotherapySystem:
                 annotated    = self.process_frame(frame)
                 
                 # Show full screen if possible
-                cv2.imshow("Physiotherapy Assistant", annotated)
+                cv2.imshow("Physiotherapy Assistant", annotated)  # type: ignore
 
             # Keyboard controls
-            key = cv2.waitKey(1 if not paused else 100) & 0xFF
+            key = cv2.waitKey(1 if not paused else 100) & 0xFF  # type: ignore
 
             if key == ord("q") or key == 27:   # Q or Esc
                 print("\n  [·] Quit by user.")
@@ -227,8 +228,8 @@ class MediaPipePhysiotherapySystem:
                 print("  [↺] Statistics reset.")
 
         cap.release()
-        cv2.destroyAllWindows()
-        self.pose.close()
+        cv2.destroyAllWindows()  # type: ignore
+        self.pose.close()  # type: ignore
         self._print_final_stats()
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -258,8 +259,8 @@ def display_menu() -> list:
     print("                       SELECT YOUR REHAB EXERCISE")
     print("=" * 79)
 
-    exercise_list = []
-    counter       = 1
+    exercise_list: list  = []
+    counter: int         = 1
 
     for category, exercises in EXERCISE_CATEGORIES.items():
         print(f"\n  {category.upper()}")
@@ -275,7 +276,7 @@ def display_menu() -> list:
             
             print(f"  [{counter:2d}]  {ex.replace('_', ' ').title():<30}  {desc_short}")
             exercise_list.append(ex)
-            counter += 1
+            counter += 1  # type: ignore[operator]
 
     print("\n" + "=" * 79)
     print("  TIP: Ensure good lighting and wear contrasting clothes for best detection.")

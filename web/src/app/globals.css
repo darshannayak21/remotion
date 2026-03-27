@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: #fafafa;
+  --color-background: #faf8f9;
   --color-foreground: #1a1a1a;
-
-  /* Maroon palette */
+  
+  /* Maroon Palette */
   --color-maroon-50: #fdf2f4;
   --color-maroon-100: #fce7eb;
   --color-maroon-200: #f9d0d9;
@@ -31,14 +31,57 @@
   --color-slate-950: #020617;
 
   /* Accent */
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-100: #d1fae5;
   --color-emerald-400: #34d399;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fef3c7;
   --color-amber-400: #fbbf24;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-rose-50: #fff1f2;
+  --color-rose-100: #ffe4e6;
   --color-rose-400: #fb7185;
+  --color-rose-500: #f43f5e;
+  --color-violet-50: #f5f3ff;
+  --color-violet-400: #a78bfa;
+  --color-violet-500: #8b5cf6;
+  --color-indigo-50: #eef2ff;
+  --color-indigo-100: #e0e7ff;
+  --color-indigo-600: #4f46e5;
+  --color-indigo-700: #4338ca;
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
 
-  --font-sans: 'Inter', sans-serif;
-  --font-display: 'Outfit', sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Outfit', ui-sans-serif, system-ui, sans-serif;
 }
 
+@variant dark (&:where(.dark, .dark *));
+
+/* ──────────────────── Dark Mode Overrides ──────────────────── */
+.dark {
+  --color-background: #0b0f19;
+  --color-foreground: #f8fafc;
+  
+  /* Map light backgrounds to deep dark blue/slate to enable standard components */
+  --color-slate-50: #0b0f19;
+  --color-slate-100: #111827;
+  --color-slate-200: #1f2937;
+  
+  /* Invert main text for readability if hardcoded to slate 800/900 */
+  --color-slate-700: #e2e8f0;
+  --color-slate-800: #f1f5f9;
+  --color-slate-900: #f8fafc;
+
+  /* Adjust light maroon to deep dark maroon for background hints */
+  --color-maroon-50: #1c050b;
+  --color-maroon-100: #2d0b16;
+}
+
+/* ──────────────────── Fonts ──────────────────── */
 @font-face {
   font-family: 'Inter';
   font-style: normal;
@@ -47,76 +90,174 @@
   src: url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 }
 
+/* ──────────────────── Scrollbar ──────────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(139, 26, 58, 0.3) transparent;
+  scrollbar-color: rgba(139, 26, 58, 0.2) transparent;
 }
 
-*::-webkit-scrollbar {
-  width: 6px;
-}
+*::-webkit-scrollbar { width: 5px; height: 5px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(139, 26, 58, 0.2); border-radius: 10px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(139, 26, 58, 0.4); }
 
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(139, 26, 58, 0.15); border-radius: 10px; }
 
-*::-webkit-scrollbar-thumb {
-  background: rgba(139, 26, 58, 0.3);
-  border-radius: 3px;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 26, 58, 0.5);
-}
-
+/* ──────────────────── Body ──────────────────── */
 body {
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
-/* Glass Card Utility */
+/* ──────────────────── Glass System ──────────────────── */
 .glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(139, 26, 58, 0.08);
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid rgba(139, 26, 58, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(139, 26, 58, 0.03);
+}
+.dark .glass, .dark.glass {
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 .glass-strong {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(139, 26, 58, 0.12);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  border: 1px solid rgba(139, 26, 58, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.dark .glass-strong, .dark.glass-strong {
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(32px) saturate(2);
+  -webkit-backdrop-filter: blur(32px) saturate(2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .glass-maroon {
-  background: rgba(139, 26, 58, 0.05);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(139, 26, 58, 0.1);
+  background: rgba(139, 26, 58, 0.04);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(139, 26, 58, 0.08);
+}
+.dark .glass-maroon, .dark.glass-maroon {
+  background: rgba(139, 26, 58, 0.15);
+  border: 1px solid rgba(224, 74, 110, 0.15);
 }
 
-/* Gradient text */
+.glass-subtle {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.dark .glass-subtle, .dark.glass-subtle {
+  background: rgba(15, 23, 42, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* ──────────────────── Gradient Text ──────────────────── */
 .text-gradient-maroon {
-  background: linear-gradient(135deg, #8b1a3a, #cc2952);
+  background: linear-gradient(135deg, #ab1d42, #cc2952, #e04a6e);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Pulse glow for active elements */
+/* ──────────────────── Animations ──────────────────── */
 @keyframes pulse-maroon {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(139, 26, 58, 0.2);
-  }
-  50% {
-    box-shadow: 0 0 0 8px rgba(139, 26, 58, 0);
-  }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 26, 58, 0.2); }
+  50% { box-shadow: 0 0 0 8px rgba(139, 26, 58, 0); }
+}
+.animate-pulse-maroon { animation: pulse-maroon 2s ease-in-out infinite; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2.5s ease-in-out infinite;
 }
 
-.animate-pulse-maroon {
-  animation: pulse-maroon 2s ease-in-out infinite;
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-12px) scale(1.02); }
+}
+.animate-float-slow { animation: float-slow 6s ease-in-out infinite; }
+
+@keyframes float-medium {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-8px) scale(1.01); }
+}
+.animate-float-medium { animation: float-medium 4.5s ease-in-out infinite; }
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 4s ease infinite;
+}
+
+@keyframes bell-ring {
+  0% { transform: rotate(0deg); }
+  10% { transform: rotate(14deg); }
+  20% { transform: rotate(-12deg); }
+  30% { transform: rotate(10deg); }
+  40% { transform: rotate(-8deg); }
+  50% { transform: rotate(4deg); }
+  60% { transform: rotate(0deg); }
+  100% { transform: rotate(0deg); }
+}
+.animate-bell { animation: bell-ring 1s ease-in-out; }
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+.animate-glow { animation: glow-pulse 3s ease-in-out infinite; }
+
+/* ──────────────────── Ambient Blobs ──────────────────── */
+.ambient-blob {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.12;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ──────────────────── Card Hover Lift ──────────────────── */
+.card-hover-lift {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+}
+.card-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(139, 26, 58, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* ──────────────────── Notification Badge Bounce ──────────────────── */
+@keyframes badge-bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+.animate-badge { animation: badge-bounce 2s ease-in-out infinite; }
+
+/* Safe area for mobile bottom bar */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
