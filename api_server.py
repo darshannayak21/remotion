@@ -1,18 +1,23 @@
-import cv2
+import cv2 # type: ignore
 import threading
 import time
 import asyncio
 import sys
-import uvicorn
-from fastapi import FastAPI, BackgroundTasks, Request
-from fastapi.responses import StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
+import uvicorn # type: ignore
+from typing import Any, Optional
+from fastapi import FastAPI, BackgroundTasks, Request # type: ignore
+from fastapi.responses import StreamingResponse # type: ignore
+from fastapi.middleware.cors import CORSMiddleware # type: ignore
 
-from main_flex import FlexSystem
-from state_manager import SystemMode
-from angle_utils import is_full_body_visible
+from pydantic import BaseModel # type: ignore
+from main_flex import FlexSystem # type: ignore
+from state_manager import SystemMode # type: ignore
+from angle_utils import is_full_body_visible # type: ignore
 
 app = FastAPI()
+
+class SpeakRequest(BaseModel):
+    text: str
 
 app.add_middleware(
     CORSMiddleware,
@@ -24,17 +29,18 @@ app.add_middleware(
 
 class GlobalState:
     def __init__(self):
-        self.system = None
-        self.is_running = False
-        self.current_frame = None
+        self.system: Any = None
+        self.is_running: bool = False
+        self.current_frame: Optional[bytes] = None
+        self.current_conn_id: int = 0
         self.lock = threading.Lock()
 
 global_state = GlobalState()
 
-def engine_loop(exercise_name: str):
-    print(f"[API] Starting engine loop for {exercise_name}")
+def engine_loop(exercise_name: str, user_name: str = "User"):
+    print(f"[API] Starting engine loop for {exercise_name} (user: {user_name})")
     try:
-        global_state.system = FlexSystem(exercise_name)
+        global_state.system = FlexSystem(exercise_name, user_name=user_name)
     except Exception as e:
         print(f"[API] Failed to init FlexSystem: {e}")
         global_state.is_running = False
@@ -128,9 +134,10 @@ def engine_loop(exercise_name: str):
             # ── Global Out-Of-Bounds Prompt ──
             _is_out_of_bounds = (landmarks is None) or (not is_full_body_visible(landmarks, vis_scores))
             if global_state.system.state.current_mode == SystemMode.IDLE and _is_out_of_bounds:
-                if time.time() - getattr(global_state.system, 'last_idle_prompt', 0) > 10.0 and not global_state.system.voice.is_playing:
-                    global_state.system.voice.speak("I cannot see your full body. Please step back into the camera frame.")
-                    global_state.system.last_idle_prompt = time.time()
+                if time.time() - getattr(global_state.system, 'init_time', 0) > 4.0:
+                    if time.time() - getattr(global_state.system, 'last_idle_prompt', 0) > 10.0 and not global_state.system.voice.is_playing:
+                        global_state.system.voice.speak("I cannot see your full body. Please step back into the camera frame.")
+                        global_state.system.last_idle_prompt = time.time()
                 cv2.putText(annotated, "PLEASE STEP BACK", (15, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0, 0, 255), 2)
 
             ret, buffer = cv2.imencode('.jpg', annotated)
@@ -149,11 +156,18 @@ def engine_loop(exercise_name: str):
         cap.release()
         global_state.system = None
 
-async def generate_stream(request: Request):
+async def generate_stream(request: Request, conn_id: int):
     while True:
         if await request.is_disconnected():
-            print("[API] Client disconnected, stopping engine.")
-            global_state.is_running = False
+            print(f"[API] Client {conn_id} disconnected.")
+            if getattr(global_state, 'current_conn_id', -1) == conn_id:
+                print("[API] Active client disconnected, stopping engine.")
+                global_state.is_running = False
+                if global_state.system:
+                    try:
+                        global_state.system.voice.stop()
+                    except:
+                        pass
             break
             
         with global_state.lock:
@@ -167,33 +181,41 @@ async def generate_stream(request: Request):
             await asyncio.sleep(0.1)
 
 @app.get("/video_feed")
-async def video_feed(request: Request, exercise: str = "standing_sky_reach"):
+async def video_feed(request: Request, exercise: str = "standing_sky_reach", user_name: str = "User"):
     global_state.is_running = False
+    if global_state.system:
+        try:
+            global_state.system.voice.stop()
+        except:
+            pass
+            
     await asyncio.sleep(0.5) # Wait for thread to stop
     
-    global_state.is_running = True
-    threading.Thread(target=engine_loop, args=(exercise,), daemon=True).start()
+    global_state.current_conn_id = getattr(global_state, 'current_conn_id', 0) + 1
     
-    return StreamingResponse(generate_stream(request), media_type="multipart/x-mixed-replace; boundary=frame")
+    global_state.is_running = True
+    threading.Thread(target=engine_loop, args=(exercise, user_name), daemon=True).start()
+    
+    return StreamingResponse(generate_stream(request, global_state.current_conn_id), media_type="multipart/x-mixed-replace; boundary=frame")
 
 @app.get("/metrics")
 def get_metrics():
     if not global_state.is_running or not global_state.system:
         return {"reps": 0, "accuracy": 0, "status": "WAITING", "is_running": False}
         
-    va = getattr(global_state.system, 'visual_analyzer', None)
+    va: Any = getattr(global_state.system, 'visual_analyzer', None)
     
-    reps = va.rep_count if hasattr(va, 'rep_count') else 0
+    reps = getattr(va, 'rep_count', 0) if va else 0
     
     accuracy = 0
-    if hasattr(va, 'frame_count') and va.frame_count > 0:
-        accuracy = min((va.correct_frames / va.frame_count) * 100, 100.0)
+    if va and getattr(va, 'frame_count', 0) > 0:
+        accuracy = min((getattr(va, 'correct_frames', 0) / getattr(va, 'frame_count', 1)) * 100, 100.0)
     
     context = getattr(global_state.system, 'latest_context', {})
     errors = context.get('errors', [])
     
     status = "READY"
-    if hasattr(va, 'frame_count') and va.frame_count > 10:
+    if va and getattr(va, 'frame_count', 0) > 10:
         if len(errors) == 0:
             status = "PERFECT"
         elif len(errors) == 1:
@@ -209,9 +231,25 @@ def get_metrics():
         "is_running": True
     }
 
+@app.post("/speak")
+def speak(req: SpeakRequest):
+    if global_state.system and global_state.is_running:
+        try:
+            global_state.system.voice.speak(req.text)
+            return {"status": "ok"}
+        except Exception as e:
+            print(f"[API] Speak Error: {e}")
+            return {"status": "error", "message": str(e)}
+    return {"status": "offline"}
+
 @app.get("/stop")
 def stop():
     global_state.is_running = False
+    if global_state.system:
+        try:
+            global_state.system.voice.stop()
+        except:
+            pass
     return {"status": "stopped"}
 
 if __name__ == "__main__":

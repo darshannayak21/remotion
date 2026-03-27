@@ -1,28 +1,29 @@
-import cv2
+import cv2  # type: ignore
 import time
 import threading
 import sys
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # type: ignore
 
 # Load env variables (API keys)
 load_dotenv()
 
-from pose_detection import PoseDetector
-from angle_utils import is_full_body_visible
-from state_manager import FlexStateManager, SystemMode
-from feedback_engine import FeedbackEngine
+from pose_detection import PoseDetector  # type: ignore
+from angle_utils import is_full_body_visible  # type: ignore
+from state_manager import FlexStateManager, SystemMode  # type: ignore
+from feedback_engine import FeedbackEngine  # type: ignore
 
-from exercises.exercise_config import EXERCISE_CONFIG
-from exercises.exercise_standards_mediapipe import EXERCISE_STANDARDS
-from pose_analyzer_mediapipe import MediaPipePoseAnalyzer
+from exercises.exercise_config import EXERCISE_CONFIG  # type: ignore
+from exercises.exercise_standards_mediapipe import EXERCISE_STANDARDS  # type: ignore
+from pose_analyzer_mediapipe import MediaPipePoseAnalyzer  # type: ignore
 
-from audio.voice_engine import VoiceEngine
-from audio.ai_handler import AIHandler
-from audio.wake_word import WakeWordEngine
+from audio.voice_engine import VoiceEngine  # type: ignore
+from audio.ai_handler import AIHandler  # type: ignore
+from audio.wake_word import WakeWordEngine  # type: ignore
 
 class FlexSystem:
-    def __init__(self, exercise_name: str):
+    def __init__(self, exercise_name: str, user_name: str = "User"):
         self.exercise_name = exercise_name
+        self.user_name = user_name
         self.config = EXERCISE_CONFIG.get(exercise_name)
         self.visual_config = EXERCISE_STANDARDS.get(exercise_name)
         
@@ -35,25 +36,33 @@ class FlexSystem:
         # Modules
         self.state = FlexStateManager()
         self.detector = PoseDetector(use_high_accuracy=True)
-        self.visual_analyzer = MediaPipePoseAnalyzer(tolerance_degrees=5, visibility_threshold=0.60)
-        self.feedback = FeedbackEngine(persistence_time=1.0, cooldown_time=4.0)
+        self.is_hold_based = self.config.get("is_hold_based", False)
+        tolerance = 20 if self.is_hold_based else 15
+        
+        self.visual_analyzer = MediaPipePoseAnalyzer(tolerance_degrees=tolerance, visibility_threshold=0.60)
+        self.feedback = FeedbackEngine(
+            persistence_time=1.0, 
+            cooldown_time=4.0,
+            allow_interruptions=self.is_hold_based
+        )
         self.voice = VoiceEngine(voice="aura-luna-en") # Human-like Deepgram Aura voice
-        self.ai = AIHandler()
+        self.ai = AIHandler(user_name=self.user_name)
         
         # Wake word daemon
         self.wake_word = WakeWordEngine(callback=self._handle_wake_word)
-        self.wake_word.start()
+        self.wake_word.start()  # type: ignore
 
         # Timers and state vars
-        self.body_detected_time = 0
-        self.exercise_start_time = 0
-        self.last_idle_prompt = 0
+        self.body_detected_time: float = 0.0
+        self.exercise_start_time: float = 0.0
+        self.init_time: float = time.time()
+        self.last_idle_prompt: float = time.time() - 6.0  # Force a 4-second initial wait for the 10-second trigger
         
         # Latest context for AI
-        self.latest_context = {}
+        self.latest_context: dict = {}
         self.is_conversing = False
 
-    def _handle_wake_word(self):
+    def _handle_wake_word(self) -> None:
         """Callback from WakeWordEngine thread."""
         self.voice.stop() # Unconditionally break any playing TTS
         
@@ -65,21 +74,21 @@ class FlexSystem:
         self.is_conversing = True
         self.state.set_mode(SystemMode.SPEAKING)
         
-        def run_loop():
+        def run_loop() -> None:
             self.ai.execute_conversational_loop(self.state, lambda: self.latest_context, self.voice, self.exercise_name)
             self.is_conversing = False
             
         threading.Thread(target=run_loop, daemon=True).start()
 
-    def _trigger_escalation(self):
+    def _trigger_escalation(self) -> None:
         """Called by FeedbackEngine when same mistake repeats too many times."""
         self.state.set_mode(SystemMode.SPEAKING)
         self.voice.stop()
         threading.Thread(target=self._run_ai_escalation, daemon=True).start()
 
-    def _run_ai_escalation(self):
+    def _run_ai_escalation(self) -> None:
         """Handles Gemini escalation logic without user voice query."""
-        if not self.latest_context["errors"]:
+        if not self.latest_context.get("errors"):
             answer = "I thought I saw an issue, but you look good now. Keep going!"
         else:
             answer = self.ai.get_gemini_escalation(self.latest_context)
@@ -90,11 +99,15 @@ class FlexSystem:
 
         self.voice.speak(answer, block=True)
         
+        # Explicit user request: The 10-second escalation timer must start AFTER speaking fully completes
+        self.feedback.error_start_times.clear()
+        self.feedback.last_spoken_time = time.time()
+        
         # Only drop back to coaching if not interrupted!
         if not getattr(self, "is_conversing", False):
             self.state.set_mode(SystemMode.ACTIVE_COACHING)
         
-    def _run_ai_live_cue(self, error, context):
+    def _run_ai_live_cue(self, error: dict, context: dict) -> None:
         """Background thread to generate and play a dynamic live cue."""
         if self.state.is_ai_active():
             return # Block live cues if we are currently in a conversation
@@ -102,18 +115,18 @@ class FlexSystem:
         cue = self.ai.get_gemini_live_cue(error, context)
         self.voice.speak(cue, block=False)
 
-    def run(self, camera_id=0):
-        cap = cv2.VideoCapture(camera_id)
+    def run(self, camera_id: int = 0) -> None:
+        cap = cv2.VideoCapture(camera_id)  # type: ignore
         if not cap.isOpened():
             print(f"[!] Cannot open camera {camera_id}.")
             return
 
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        cap.set(cv2.CAP_PROP_FPS, 30)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)  # type: ignore
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)  # type: ignore
+        cap.set(cv2.CAP_PROP_FPS, 30)  # type: ignore
         
-        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))  # type: ignore
+        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))  # type: ignore
         
         print(f"\n[FLEX] System Ready. Target: {self.exercise_name}")
         print("[FLEX] Say 'hey flex' anytime to ask questions.")
@@ -142,7 +155,7 @@ class FlexSystem:
                     )
 
                 # ── System Mode HUD ──
-                cv2.putText(annotated, f"MODE: {mode.name}", (w - 300, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                cv2.putText(annotated, f"MODE: {mode.name}", (w - 300, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)  # type: ignore
 
                 if landmarks is not None:
                     # ── Universal Telemetry Tracking ──
@@ -171,7 +184,7 @@ class FlexSystem:
                                 self.state.set_mode(SystemMode.IDLE) # Lost them
 
                     elif mode == SystemMode.STARTING_EXERCISE:
-                        cv2.putText(annotated, "GET READY", (15, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0, 255, 255), 2)
+                        cv2.putText(annotated, "GET READY", (15, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0, 255, 255), 2)  # type: ignore
                         # Wait until voice finishes, plus 2 seconds
                         if not self.voice.is_playing and (time.time() - self.exercise_start_time > 2.0):
                             self.state.set_mode(SystemMode.ACTIVE_COACHING)
@@ -192,14 +205,14 @@ class FlexSystem:
                                     self.voice.speak(cue_or_error)
 
                     elif mode == SystemMode.LISTENING:
-                        cv2.putText(annotated, "LISTENING TO YOU...", (w // 2 - 180, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0, 255, 0), 2)
+                        cv2.putText(annotated, "LISTENING TO YOU...", (w // 2 - 180, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0, 255, 0), 2)  # type: ignore
 
                     elif mode == SystemMode.SPEAKING:
-                        cv2.putText(annotated, "AI SPEAKING...", (w // 2 - 150, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (255, 0, 255), 2)
+                        cv2.putText(annotated, "AI SPEAKING...", (w // 2 - 150, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (255, 0, 255), 2)  # type: ignore
 
                 else:
                     # No landmarks at all
-                    cv2.putText(annotated, "NO PERSON DETECTED", (w // 2 - 150, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0, 0, 255), 2)
+                    cv2.putText(annotated, "NO PERSON DETECTED", (w // 2 - 150, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0, 0, 255), 2)  # type: ignore
                     if not self.state.is_ai_active():
                         self.state.set_mode(SystemMode.IDLE)
                         
@@ -210,11 +223,11 @@ class FlexSystem:
                     if time.time() - self.last_idle_prompt > 10.0 and not self.voice.is_playing:
                         self.voice.speak("I cannot see your full body. Please step back into the camera frame.")
                         self.last_idle_prompt = time.time()
-                    cv2.putText(annotated, "PLEASE STEP BACK", (15, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0, 0, 255), 2)
+                    cv2.putText(annotated, "PLEASE STEP BACK", (15, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0, 0, 255), 2)  # type: ignore
 
-                cv2.imshow("FLEX Live Physiotherapy Assistant", annotated)
+                cv2.imshow("FLEX Live Physiotherapy Assistant", annotated)  # type: ignore
                 
-                key = cv2.waitKey(1) & 0xFF
+                key = cv2.waitKey(1) & 0xFF  # type: ignore
                 if key == ord('q'):
                     print("[FLEX] Exiting...")
                     break
@@ -225,14 +238,14 @@ class FlexSystem:
         except KeyboardInterrupt:
             print("\n[FLEX] Interrupted.")
         finally:
-            self.wake_word.stop()
+            self.wake_word.stop()  # type: ignore
             self.voice.stop()
             self.detector.close()
             cap.release()
-            cv2.destroyAllWindows()
+            cv2.destroyAllWindows()  # type: ignore
 
 
-def display_menu():
+def display_menu() -> str:
     print("\n" + "=" * 60)
     print("                FLEX COACHING MENU")
     print("=" * 60)
@@ -253,6 +266,7 @@ def display_menu():
         except ValueError:
             pass
         print("Invalid choice, please try again.")
+    return exercises[0]  # unreachable, satisfies type checker
 
 if __name__ == "__main__":
     target = display_menu()
