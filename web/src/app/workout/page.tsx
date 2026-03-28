@@ -10,6 +10,7 @@ import { EXERCISES, getExerciseById, Exercise } from "@/data/exerciseData";
 import {
   saveWorkoutSession,
   getWorkoutGroups,
+  saveWorkoutGroups,
   WorkoutGroup,
 } from "@/lib/userService";
 import {
@@ -21,6 +22,7 @@ import {
   Eye,
   EyeOff,
   Target,
+  Trash2,
   ChevronLeft,
   ChevronRight,
   RotateCcw,
@@ -139,23 +141,37 @@ function WorkoutContent() {
     if (reps > prevRepsRef.current) {
       prevRepsRef.current = reps;
 
-      if (reps === targetReps) {
+      if (reps >= targetReps) {
          if (!announcedSetsRef.current.has(currentSet)) {
            announcedSetsRef.current.add(currentSet);
            fetch("http://127.0.0.1:8000/speak", {
              method: "POST", headers: { "Content-Type": "application/json" },
-             body: JSON.stringify({text: `Great job! That's one set.`})
+             body: JSON.stringify({text: `Good, that's one set.`, interrupt: true})
            }).catch(() => {});
+           
+           // Auto-proceed
+           setTimeout(() => {
+             if (currentSet < totalSets) {
+               startRest();
+             } else {
+               nextSet();
+             }
+           }, 2500);
          }
       } else if (reps === targetReps - 1) {
          fetch("http://127.0.0.1:8000/speak", {
            method: "POST", headers: { "Content-Type": "application/json" },
-           body: JSON.stringify({text: `Just one more!`})
+           body: JSON.stringify({text: `Just one more!`, interrupt: true})
          }).catch(() => {});
-      } else if (reps > 0 && reps < targetReps - 1) {
+      } else if (reps === 1) {
          fetch("http://127.0.0.1:8000/speak", {
            method: "POST", headers: { "Content-Type": "application/json" },
-           body: JSON.stringify({text: `That's ${reps}`})
+           body: JSON.stringify({text: `Yes correct, that's one`, interrupt: true})
+         }).catch(() => {});
+      } else if (reps > 1 && reps < targetReps - 1) {
+         fetch("http://127.0.0.1:8000/speak", {
+           method: "POST", headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({text: `That's ${reps}`, interrupt: true})
          }).catch(() => {});
       }
     } else if (reps === 0) {
@@ -170,34 +186,50 @@ function WorkoutContent() {
     if (!isRunning || !activeExercise?.isHoldBased || !voiceEnabled) return;
     
     const iv = setInterval(() => {
-       if (status === "PERFECT" || status === "GOOD") {
+       // Only count hold time when posture is PERFECT (0 errors + body fully visible)
+       if (status === "PERFECT" && engineMode === "ACTIVE_COACHING") {
            holdSecondsRef.current += 1;
            const s = holdSecondsRef.current;
-           if (s === 10) {
-               fetch("http://127.0.0.1:8000/speak", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text: "10 seconds, keep holding!"}) }).catch(()=>{});
-           } else if (s === 20) {
-               fetch("http://127.0.0.1:8000/speak", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text: "20 seconds, almost there!"}) }).catch(()=>{});
-           } else if (s === targetReps) {
+           
+           if (s === targetReps) {
                if (!announcedSetsRef.current.has(currentSet)) {
                   announcedSetsRef.current.add(currentSet);
-                  fetch("http://127.0.0.1:8000/speak", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text: `Great job! That's one set.`}) }).catch(()=>{});
+                  fetch("http://127.0.0.1:8000/speak", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text: `Good, that's one set.`, interrupt: true}) }).catch(()=>{});
+                  
+                  // Auto-proceed
+                  setTimeout(() => {
+                    if (currentSet < totalSets) {
+                      startRest();
+                    } else {
+                      nextSet();
+                    }
+                  }, 2500);
+               }
+           } else if (s > 0 && s % 10 === 0 && s < targetReps) {
+               if (targetReps - s === 10) {
+                   fetch("http://127.0.0.1:8000/speak", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text: "Just 10 more seconds!", interrupt: true}) }).catch(()=>{});
+               } else {
+                   fetch("http://127.0.0.1:8000/speak", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text: `That's ${s}, keep going.`, interrupt: true}) }).catch(()=>{});
                }
            }
        }
     }, 1000);
     return () => clearInterval(iv);
-  }, [isRunning, status, activeExercise, currentSet, voiceEnabled, targetReps]);
+  }, [isRunning, status, engineMode, activeExercise, currentSet, voiceEnabled, targetReps]);
 
   // Sync selected exercise
   useEffect(() => {
     if (activeExercise) {
       setSelectedExerciseId(activeExercise.id);
+      // 10 reps per set, or duration for holD (converted from minutes to seconds)
+      setTargetReps(activeExercise.isHoldBased ? ((durations[activeExercise.id] || activeExercise.duration || 3) * 60) : 10);
+      setElapsed(0);
+      setIsRunning(false);
+      try { fetch("http://127.0.0.1:8000/stop"); } catch (e) { }
 
       // Auto-play demo if available on exercise switch
       if (activeExercise.demoVideo && demoVideoEnabled) {
         setShowDemo(true);
-        setIsRunning(false);
-        try { fetch("http://127.0.0.1:8000/stop"); } catch (e) { }
       } else {
         setShowDemo(false);
       }
@@ -211,12 +243,14 @@ function WorkoutContent() {
     return () => clearInterval(iv);
   }, [isRunning, isResting, engineMode]);
 
-  // Rest timer
+  // Rest timer - auto-proceeds to next set when done
+  const restDoneRef = useRef(false);
   useEffect(() => {
     if (!isResting || restTimer <= 0) return;
     const iv = setInterval(() => {
       setRestTimer((t) => {
         if (t <= 1) {
+          restDoneRef.current = true;
           setIsResting(false);
           return 0;
         }
@@ -225,6 +259,14 @@ function WorkoutContent() {
     }, 1000);
     return () => clearInterval(iv);
   }, [isResting, restTimer]);
+
+  // When rest finishes, auto-proceed to next set
+  useEffect(() => {
+    if (!isResting && restDoneRef.current) {
+      restDoneRef.current = false;
+      nextSet();
+    }
+  }, [isResting]);
 
   // Fetch real live data from Python API
   useEffect(() => {
@@ -255,19 +297,23 @@ function WorkoutContent() {
     return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   };
 
-  // Save session data to Firestore when moving to next exercise
-  const saveCurrentSession = async (overrideSet?: number) => {
-    if (!user || !activeExercise || reps === 0) return;
+  // Save session data to Firestore after each set
+  const saveCurrentSession = async (setNum: number) => {
+    const isHold = activeExercise?.isHoldBased;
+    const finalReps = isHold ? holdSecondsRef.current : reps;
+    
+    if (!user || !activeExercise || finalReps === 0) return;
     try {
+      console.log(`[Save] Set ${setNum}: ${finalReps} reps for ${activeExercise.name}`);
       await saveWorkoutSession(user.uid, {
         exerciseId: activeExercise.id,
         exerciseName: activeExercise.name,
         score: accuracy > 0 ? Math.round(accuracy) : 0,
-        reps,
+        reps: finalReps,
         targetReps,
         duration: elapsed,
         date: new Date().toISOString(),
-        setNumber: overrideSet || currentSet,
+        setNumber: setNum,
       });
     } catch (err) {
       console.error("Failed to save workout session:", err);
@@ -276,7 +322,6 @@ function WorkoutContent() {
 
   const nextExercise = async () => {
     if (activeIndex < exerciseQueue.length - 1) {
-      await saveCurrentSession();
       setActiveIndex(activeIndex + 1);
       resetSession();
     }
@@ -300,7 +345,9 @@ function WorkoutContent() {
     prevRepsRef.current = 0;
     holdSecondsRef.current = 0;
     announcedSetsRef.current.clear();
+    savedSetRef.current.clear();
     try {
+      await fetch("http://127.0.0.1:8000/reset_reps", { method: "POST" });
       await fetch("http://127.0.0.1:8000/stop");
     } catch (e) { }
   };
@@ -316,7 +363,15 @@ function WorkoutContent() {
     }
   };
 
-  const startRest = () => {
+  // Track which sets have already been saved to prevent double-saves
+  const savedSetRef = useRef(new Set<number>());
+
+  const startRest = async () => {
+    // Save current set data ONCE before starting rest
+    if (!savedSetRef.current.has(currentSet)) {
+      savedSetRef.current.add(currentSet);
+      await saveCurrentSession(currentSet);
+    }
     setIsResting(true);
     setRestTimer(30);
     setIsRunning(false);
@@ -324,32 +379,36 @@ function WorkoutContent() {
 
   const nextSet = async () => {
     if (currentSet < totalSets) {
-      if (!announcedSetsRef.current.has(currentSet)) {
-        announcedSetsRef.current.add(currentSet);
-        fetch("http://127.0.0.1:8000/speak", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({text: `Great job! That's one set.`})
-        }).catch(() => {});
+      // Save set data if not already saved by startRest
+      if (!savedSetRef.current.has(currentSet)) {
+        savedSetRef.current.add(currentSet);
+        await saveCurrentSession(currentSet);
       }
-      await saveCurrentSession(currentSet);
-      setCurrentSet(currentSet + 1);
+      const newSet = currentSet + 1;
+      setCurrentSet(newSet);
       setReps(0);
       setElapsed(0);
+      prevRepsRef.current = 0;
+      holdSecondsRef.current = 0;
+      
+      // Use /start_set which resets backend AND skips intro for set > 1
+      try {
+        await fetch(`http://127.0.0.1:8000/start_set?set_number=${newSet}`, { method: "POST" });
+      } catch (err) {}
       setIsRunning(true);
       setIsResting(false);
       setRestTimer(0);
-      prevRepsRef.current = 0;
-      holdSecondsRef.current = 0;
     } else {
-      if (!announcedSetsRef.current.has(currentSet)) {
-        announcedSetsRef.current.add(currentSet);
-        fetch("http://127.0.0.1:8000/speak", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({text: `Great job! You completed set ${currentSet}.`})
-        }).catch(() => {});
+      // All sets completed — save final set and move to next exercise
+      if (!savedSetRef.current.has(currentSet)) {
+        savedSetRef.current.add(currentSet);
+        await saveCurrentSession(currentSet);
       }
-      await saveCurrentSession(currentSet);
-      nextExercise();
+      fetch("http://127.0.0.1:8000/speak", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({text: `Excellent! You completed all sets.`, interrupt: true})
+      }).catch(() => {});
+      setTimeout(() => nextExercise(), 3000);
     }
   };
 
@@ -365,6 +424,18 @@ function WorkoutContent() {
       ...prev,
       [exId]: Math.max(1, Math.min(30, (prev[exId] || 3) + delta)),
     }));
+  };
+
+  const handleDeleteGroup = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!user) return;
+    try {
+      const newGroups = savedGroups.filter(g => g.id !== id);
+      setSavedGroups(newGroups);
+      await saveWorkoutGroups(user.uid, newGroups);
+    } catch (err) {
+      console.error("Failed to delete group:", err);
+    }
   };
 
   // ── ZERO STATE: No active queue ──
@@ -393,9 +464,16 @@ function WorkoutContent() {
                   <button
                     key={group.id}
                     onClick={() => router.push(`/workout?queue=${group.exercises.join(',')}`)}
-                    className="glass p-6 rounded-2xl text-left hover:border-maroon-300 dark:hover:border-maroon-600 transition-all group shadow-sm text-slate-800 dark:text-slate-100 flex flex-col h-full bg-white/80 dark:bg-white/5 dark:backdrop-blur-xl dark:border dark:border-white/10"
+                    className="relative glass p-6 rounded-2xl text-left hover:border-maroon-300 dark:hover:border-maroon-600 transition-all group shadow-sm text-slate-800 dark:text-slate-100 flex flex-col h-full bg-white/80 dark:bg-white/5 dark:backdrop-blur-xl dark:border dark:border-white/10"
                   >
-                    <h3 className="font-bold text-lg mb-1 group-hover:text-maroon-700 transition-colors">{group.name}</h3>
+                    <div 
+                      onClick={(e) => handleDeleteGroup(e, group.id)}
+                      className="absolute top-4 right-4 p-2 text-slate-400 opacity-0 group-hover:opacity-100 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-all"
+                      title="Delete Routine"
+                    >
+                      <Trash2 size={16} />
+                    </div>
+                    <h3 className="font-bold text-lg mb-1 group-hover:text-maroon-700 transition-colors pr-8">{group.name}</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400 flex-1">{group.exercises.length} Exercises bundled together</p>
 
                     <div className="mt-5 pt-4 border-t border-slate-100 dark:border-white/10 flex items-center justify-between w-full">

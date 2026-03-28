@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import GlassCard from "@/components/ui/GlassCard";
+import GlowingSearchBar from "@/components/ui/animated-glowing-search-bar";
 import AssignPlanModal from "@/components/doctor/AssignPlanModal";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import {
@@ -273,19 +274,11 @@ export default function DoctorDashboardPage() {
         <div className="lg:col-span-2 space-y-5">
           {/* Search Bar */}
           <motion.div variants={fadeUp} initial="hidden" animate="visible">
-            <div className="relative">
-              <Search
-                size={18}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                type="text"
-                placeholder="Search patients by name or email..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 rounded-xl glass text-sm focus:outline-none focus:ring-2 focus:ring-maroon-200/50 focus:border-maroon-300 transition-all placeholder:text-slate-400"
-              />
-            </div>
+            <GlowingSearchBar
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search patients by name or email..."
+            />
           </motion.div>
 
           {/* Patients Card */}

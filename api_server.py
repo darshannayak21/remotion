@@ -18,6 +18,7 @@ app = FastAPI()
 
 class SpeakRequest(BaseModel):
     text: str
+    interrupt: bool = False
 
 app.add_middleware(
     CORSMiddleware,
@@ -53,6 +54,10 @@ def engine_loop(exercise_name: str, user_name: str = "User"):
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     
+    # Set init_time AFTER camera opens so the 4s grace period is truly from first frame
+    global_state.system.init_time = time.time()
+    # Allow idle prompt to fire immediately once 4s init guard passes (not 10s later)
+    global_state.system.last_idle_prompt = time.time() - 10.0
     global_state.system.state.set_mode(SystemMode.IDLE)
     
     try:
@@ -85,23 +90,24 @@ def engine_loop(exercise_name: str, user_name: str = "User"):
                 if mode in [SystemMode.ACTIVE_COACHING, SystemMode.LISTENING, SystemMode.SPEAKING]:
                     global_state.system.latest_context = global_state.system.feedback.evaluate_frame(landmarks, vis_scores, global_state.system.config, w, h)
                     
-                # ── State Machine Logic ──
+            # Check full body visibility (not just face/partial landmarks)
+            _full_body = (landmarks is not None) and is_full_body_visible(landmarks, vis_scores)
+            
+            # ── State Machine Logic ──
+            if _full_body:
                 if mode == SystemMode.IDLE:
-                    if is_full_body_visible(landmarks, vis_scores):
-                        global_state.system.state.set_mode(SystemMode.BODY_DETECTED)
-                        global_state.system.body_detected_time = time.time()
+                    global_state.system.state.set_mode(SystemMode.BODY_DETECTED)
+                    global_state.system.body_detected_time = time.time()
 
                 elif mode == SystemMode.BODY_DETECTED:
-                    if time.time() - global_state.system.body_detected_time > 2.0:
-                        if is_full_body_visible(landmarks, vis_scores):
+                    if time.time() - getattr(global_state.system, 'init_time', 0) > 4.0:
+                        if time.time() - global_state.system.body_detected_time > 2.0:
                             global_state.system.voice.speak("Great, I can see you clearly.")
                             global_state.system.state.set_mode(SystemMode.STARTING_EXERCISE)
                             
                             intro_text = global_state.system.config.get("intro", ["Let's begin."])[0]
                             global_state.system.voice.speak(intro_text)
                             global_state.system.exercise_start_time = time.time()
-                        else:
-                            global_state.system.state.set_mode(SystemMode.IDLE)
 
                 elif mode == SystemMode.STARTING_EXERCISE:
                     cv2.putText(annotated, "GET READY", (15, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0, 255, 255), 2)
@@ -125,15 +131,32 @@ def engine_loop(exercise_name: str, user_name: str = "User"):
 
                 elif mode == SystemMode.SPEAKING:
                     cv2.putText(annotated, "AI SPEAKING...", (w // 2 - 150, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (255, 0, 255), 2)
+                    
+                    if getattr(global_state.system, 'is_hold_based', False):
+                        if not getattr(global_state.system, 'is_conversing', False):
+                            ctx = getattr(global_state.system, 'latest_context', {})
+                            if ctx.get("joints") and not len(ctx.get("errors", [])):
+                                print("[Coaching] User corrected hold form mid-speech! Interrupting.")
+                                global_state.system.voice.stop()
+                                def _say_good():
+                                    time.sleep(1.0)
+                                    global_state.system.hold_timer_announced = True
+                                    global_state.system.voice.speak("Good form, timer started.", block=False)
+                                threading.Thread(target=_say_good, daemon=True).start()
+                                global_state.system.state.set_mode(SystemMode.ACTIVE_COACHING)
 
             else:
-                cv2.putText(annotated, "NO PERSON DETECTED", (w // 2 - 150, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0, 0, 255), 2)
-                if not global_state.system.state.is_ai_active():
+                # Full body NOT visible (partial landmarks or no person at all)
+                cv2.putText(annotated, "NO FULL BODY DETECTED", (w // 2 - 180, 90), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0, 0, 255), 2)
+                if mode == SystemMode.BODY_DETECTED:
+                    global_state.system.state.set_mode(SystemMode.IDLE)
+                elif mode == SystemMode.IDLE:
+                    pass  # Stay in IDLE, handled by out-of-bounds prompt below
+                elif not global_state.system.state.is_ai_active():
                     global_state.system.state.set_mode(SystemMode.IDLE)
                     
             # ── Global Out-Of-Bounds Prompt ──
-            _is_out_of_bounds = (landmarks is None) or (not is_full_body_visible(landmarks, vis_scores))
-            if global_state.system.state.current_mode == SystemMode.IDLE and _is_out_of_bounds:
+            if global_state.system.state.current_mode == SystemMode.IDLE and not _full_body:
                 if time.time() - getattr(global_state.system, 'init_time', 0) > 4.0:
                     if time.time() - getattr(global_state.system, 'last_idle_prompt', 0) > 10.0 and not global_state.system.voice.is_playing:
                         global_state.system.voice.speak("I cannot see your full body. Please step back into the camera frame.")
@@ -213,9 +236,13 @@ def get_metrics():
     
     context = getattr(global_state.system, 'latest_context', {})
     errors = context.get('errors', [])
+    joints = context.get('joints', {})
+    current_mode = global_state.system.state.current_mode
     
+    # Status reflects real-time form quality when body is being tracked
+    active_modes = [SystemMode.ACTIVE_COACHING, SystemMode.SPEAKING, SystemMode.LISTENING, SystemMode.STARTING_EXERCISE]
     status = "READY"
-    if va and getattr(va, 'frame_count', 0) > 10:
+    if current_mode in active_modes and joints:
         if len(errors) == 0:
             status = "PERFECT"
         elif len(errors) == 1:
@@ -227,7 +254,7 @@ def get_metrics():
         "reps": reps,
         "accuracy": accuracy,
         "status": status,
-        "mode": global_state.system.state.current_mode.name if global_state.system else "IDLE",
+        "mode": current_mode.name,
         "is_running": True
     }
 
@@ -235,12 +262,60 @@ def get_metrics():
 def speak(req: SpeakRequest):
     if global_state.system and global_state.is_running:
         try:
+            if req.interrupt:
+                global_state.system.voice.stop()
             global_state.system.voice.speak(req.text)
             return {"status": "ok"}
         except Exception as e:
             print(f"[API] Speak Error: {e}")
             return {"status": "error", "message": str(e)}
     return {"status": "offline"}
+
+@app.post("/reset_reps")
+def reset_reps():
+    """Reset rep counter and internal state between sets."""
+    if global_state.system:
+        va = getattr(global_state.system, 'visual_analyzer', None)
+        if va:
+            va.rep_count = 0
+            va.frame_count = 0
+            va.correct_frames = 0
+            va.state = 'idle'
+        global_state.system.feedback.error_start_times.clear()
+        global_state.system.feedback.error_speak_counts.clear()
+        global_state.system.feedback.last_spoken_time = 0.0
+        global_state.system.feedback.last_positive_time = 0.0
+        global_state.system.latest_context = {}
+    return {"status": "reset"}
+
+@app.post("/start_set")
+def start_set(set_number: int = 1):
+    """Begin a new set. For set > 1, skip the intro and go straight to coaching."""
+    if not global_state.system:
+        return {"status": "offline"}
+    
+    # Reset reps first
+    va = getattr(global_state.system, 'visual_analyzer', None)
+    if va:
+        va.rep_count = 0
+        va.frame_count = 0
+        va.correct_frames = 0
+        va.state = 'idle'
+    global_state.system.feedback.error_start_times.clear()
+    global_state.system.feedback.error_speak_counts.clear()
+    global_state.system.feedback.last_spoken_time = time.time()
+    global_state.system.latest_context = {}
+    
+    if set_number > 1:
+        # Skip the intro, just announce the set number
+        global_state.system.voice.speak(f"Let's start set {set_number}.")
+        global_state.system.state.set_mode(SystemMode.ACTIVE_COACHING)
+    else:
+        # First set — full body detection + intro flow
+        global_state.system.init_time = time.time()
+        global_state.system.state.set_mode(SystemMode.IDLE)
+    
+    return {"status": "ok", "set": set_number}
 
 @app.get("/stop")
 def stop():

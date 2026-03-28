@@ -87,10 +87,13 @@ class FeedbackEngine:
         """
         Applies temporal logic to determine if we should speak right now.
         Returns (Cue_Text_To_Speak, Boolean_Should_Escalate)
+        
+        For rep-based exercises (allow_interruptions=False):
+          - 10-second escalation STILL fires (AI explains what's wrong)
+          - Short coaching cues and positive reinforcement are SKIPPED
+        For hold-based exercises (allow_interruptions=True):
+          - Full behavior: short cues + escalation + positive reinforcement
         """
-        if not self.allow_interruptions:
-            return "", False
-            
         current_time = time.time()
         
         active_error_joints: List[str] = [e["joint"] for e in context["errors"]]
@@ -108,6 +111,26 @@ class FeedbackEngine:
                 
         # Are we in global cooldown?
         if current_time - self.last_spoken_time < self.cooldown_time:
+            return "", False
+
+        # ── 10-Second Escalation (ALWAYS active, both rep and hold exercises) ──
+        for err in context["errors"]:
+            j = err["joint"]
+            if j not in self.error_start_times:
+                continue
+            duration = current_time - self.error_start_times[j]
+            time_since_last_speech = current_time - self.last_spoken_time
+            
+            if duration >= 10.0 and time_since_last_speech >= 10.0:
+                print(f"[Feedback] User inactive/incorrect for 10s on {j}. Escalating to full AI explanation.")
+                # Reset timing blocks to guarantee at least 10 seconds before the next major explanation
+                self.error_start_times.clear()
+                self.error_speak_counts.clear()
+                self.last_spoken_time = current_time
+                return dict(err), True  # Force full AI Escalation
+
+        # ── Everything below is ONLY for hold-based exercises (allow_interruptions=True) ──
+        if not self.allow_interruptions:
             return "", False
 
         # Positive Reinforcement: If there are absolutely zero errors right now
@@ -133,15 +156,6 @@ class FeedbackEngine:
             if j not in self.error_start_times:
                 continue
             duration = current_time - self.error_start_times[j]
-            
-            # ── 10-Second Inactivity / Refusal Escalation ──
-            if duration >= 10.0:
-                print(f"[Feedback] User inactive/incorrect for 10s on {j}. Escalating to full AI explanation.")
-                # Reset timing blocks to guarantee at least 10 seconds before the next major explanation
-                self.error_start_times.clear()
-                self.error_speak_counts.clear()
-                self.last_spoken_time = current_time
-                return dict(err), True  # Force full AI Escalation
 
             if duration >= self.persistence_time:
                 if duration > longest_dist:
@@ -164,3 +178,4 @@ class FeedbackEngine:
             return dict(longest_error), False  # type: ignore[return-value]
 
         return "", False
+

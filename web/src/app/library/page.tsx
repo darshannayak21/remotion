@@ -365,10 +365,10 @@ function LibraryContent() {
                         {ex.category}
                       </span>
 
-                      <h3 className="font-semibold text-sm text-slate-800 mt-2 mb-1">
+                      <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-100 mt-2 mb-1">
                         {ex.name}
                       </h3>
-                      <p className="text-xs text-slate-500 leading-relaxed line-clamp-2 mb-3">
+                      <p className="text-xs text-slate-500 dark:text-slate-300 leading-relaxed line-clamp-2 mb-3">
                         {ex.description}
                       </p>
 
@@ -413,7 +413,7 @@ function LibraryContent() {
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <h3 className="font-semibold text-sm text-slate-800">
+                        <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-100">
                           {ex.name}
                         </h3>
                         <span

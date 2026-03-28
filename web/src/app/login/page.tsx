@@ -15,6 +15,7 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
+import VaporizeTextCycle, { Tag } from "@/components/ui/vapour-text-effect";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -112,27 +113,34 @@ export default function LoginPage() {
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="w-full max-w-md relative z-10"
       >
-        {/* Logo & Branding */}
+        {/* Logo & Branding — Vaporize Text Effect */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="text-center mb-8"
         >
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-maroon-700 to-maroon-900 flex items-center justify-center mx-auto shadow-xl shadow-maroon-700/30 mb-4">
-            <span
-              className="text-white font-bold text-2xl"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              R
-            </span>
+          <div className="w-full h-28 mb-3">
+            <VaporizeTextCycle
+              texts={["ReMotion", "AI Physio", "Recovery"]}
+              font={{
+                fontFamily: "Inter, sans-serif",
+                fontSize: "72px",
+                fontWeight: 700,
+              }}
+              color="rgb(127, 29, 29)"
+              spread={4}
+              density={6}
+              animation={{
+                vaporizeDuration: 2,
+                fadeInDuration: 1,
+                waitDuration: 1.5,
+              }}
+              direction="left-to-right"
+              alignment="center"
+              tag={Tag.H1}
+            />
           </div>
-          <h1
-            className="text-3xl font-bold tracking-tight"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            <span className="text-gradient-maroon">ReMotion</span>
-          </h1>
           <p className="text-slate-500 text-sm mt-1">
             AI Physiotherapy Coach
           </p>

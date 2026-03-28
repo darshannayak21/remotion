@@ -160,33 +160,57 @@ function LeaderboardContent() {
           transition={{ delay: 0.2 }}
           className="mb-6"
         >
-          <GlassCard className="!p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-maroon-500 to-maroon-700 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-maroon-600/20">
-                  #{userRank}
+          <div className="relative overflow-hidden rounded-3xl p-6 sm:p-7 bg-white/40 dark:bg-slate-900/40 backdrop-blur-2xl border border-white/50 dark:border-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.16)] transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent dark:from-white/[0.02] pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+              <div className="flex items-center gap-5">
+                {/* Minimal Rank Pill */}
+                <div className={`shrink-0 flex items-center justify-center w-14 h-14 rounded-2xl border backdrop-blur-md ${userRank === 1
+                    ? "bg-amber-50/80 dark:bg-amber-900/30 border-amber-200/50 dark:border-amber-700/50 text-amber-600 dark:text-amber-400"
+                    : "bg-white/60 dark:bg-slate-800/60 border-slate-200/60 dark:border-slate-700/60 text-slate-800 dark:text-slate-100"
+                  }`}>
+                  <span className="text-2xl font-light tracking-tight">#{userRank}</span>
                 </div>
+
+                {/* Rank Context Text */}
                 <div>
-                  <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                    Your Ranking
+                  <h2 className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 tracking-widest uppercase mb-1">
+                    Your Position
+                  </h2>
+                  <p className="text-xl sm:text-2xl font-medium tracking-tight text-slate-800 dark:text-slate-100">
+                    {userRank === 1
+                      ? "First Place"
+                      : userRank <= 3
+                        ? "Top 3 Finish"
+                        : userRank <= 10
+                          ? "Top 10 Player"
+                          : "Active Competitor"}
                   </p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500">
-                    {userRank <= 3
-                      ? "🏆 Top 3 — You're a champion!"
-                      : userRank <= 10
-                      ? "🔥 Top 10 — Keep pushing!"
-                      : `Out of ${entries.length} athletes`}
+                  <p className="text-xs mt-1 text-slate-500 dark:text-slate-400 font-medium">
+                    {userRank === 1
+                      ? "You are currently leading the leaderboard."
+                      : `You are ranked ${userRank} out of ${entries.length} athletes.`}
                   </p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-xs text-slate-400 dark:text-slate-500">Sorted by</p>
-                <p className="text-sm font-bold text-maroon-700 dark:text-maroon-400 capitalize">
-                  {SORT_TABS.find((t) => t.key === sortBy)?.label || sortBy}
+
+              {/* Score Highlight - Highly Minimal */}
+              <div className="sm:text-right">
+                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
+                  {SORT_TABS.find((t) => t.key === sortBy)?.label || sortBy} Record
                 </p>
+                <div className="flex items-baseline justify-start sm:justify-end gap-1.5">
+                  <p className="text-3xl font-light tracking-tighter text-slate-800 dark:text-slate-100 tabular-nums">
+                    {getSortValue(entries[userRank - 1], sortBy).toString().split(' ')[0]}
+                  </p>
+                  <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                    {getSortValue(entries[userRank - 1], sortBy).toString().split(' ').slice(1).join(' ')}
+                  </span>
+                </div>
               </div>
             </div>
-          </GlassCard>
+          </div>
         </motion.div>
       )}
 
@@ -201,11 +225,10 @@ function LeaderboardContent() {
           <button
             key={tab.key}
             onClick={() => changeSortBy(tab.key)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
-              sortBy === tab.key
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${sortBy === tab.key
                 ? "bg-maroon-700 text-white shadow-lg shadow-maroon-700/20"
                 : "bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-slate-200/60 dark:border-slate-700/40 text-slate-600 dark:text-slate-300 hover:border-maroon-200 dark:hover:border-maroon-600"
-            }`}
+              }`}
           >
             {tab.icon}
             {tab.label}
@@ -249,13 +272,12 @@ function LeaderboardContent() {
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.04, duration: 0.35 }}
-                  className={`group relative flex items-center gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-2xl backdrop-blur-xl border transition-all duration-200 ${
-                    isUser
+                  className={`group relative flex items-center gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-2xl backdrop-blur-xl border transition-all duration-200 ${isUser
                       ? "bg-maroon-50/60 dark:bg-maroon-900/15 border-maroon-200/60 dark:border-maroon-700/30 ring-1 ring-maroon-200/40 dark:ring-maroon-800/30"
                       : badge
-                      ? `${badge.bg} border`
-                      : "bg-white/60 dark:bg-slate-800/40 border-slate-100/80 dark:border-slate-700/40 hover:border-slate-200 dark:hover:border-slate-600"
-                  }`}
+                        ? `${badge.bg} border`
+                        : "bg-white/60 dark:bg-slate-800/40 border-slate-100/80 dark:border-slate-700/40 hover:border-slate-200 dark:hover:border-slate-600"
+                    }`}
                 >
                   {/* Rank */}
                   <div className="shrink-0 w-10 text-center">
@@ -310,13 +332,12 @@ function LeaderboardContent() {
 
                   {/* Score (dynamic based on sort) */}
                   <div className="shrink-0 text-right">
-                    <p className={`text-sm font-bold tabular-nums ${
-                      rank === 1 ? "text-amber-600 dark:text-amber-400" :
-                      rank === 2 ? "text-slate-500 dark:text-slate-300" :
-                      rank === 3 ? "text-orange-600 dark:text-orange-400" :
-                      isUser ? "text-maroon-700 dark:text-maroon-400" :
-                      "text-slate-700 dark:text-slate-200"
-                    }`}>
+                    <p className={`text-sm font-bold tabular-nums ${rank === 1 ? "text-amber-600 dark:text-amber-400" :
+                        rank === 2 ? "text-slate-500 dark:text-slate-300" :
+                          rank === 3 ? "text-orange-600 dark:text-orange-400" :
+                            isUser ? "text-maroon-700 dark:text-maroon-400" :
+                              "text-slate-700 dark:text-slate-200"
+                      }`}>
                       {getSortValue(entry, sortBy)}
                     </p>
                   </div>

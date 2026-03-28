@@ -18,6 +18,7 @@ import {
   Flame,
   Zap,
   Lock,
+  Unlock,
   ChevronRight,
   Sparkles,
   X,
@@ -311,11 +312,23 @@ export function GamificationPanel() {
                     <div className="absolute -inset-px rounded-xl bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                   )}
 
-                  <div className="flex items-center gap-2.5 mb-1.5">
-                    <span className={`text-xl ${isUnlocked ? "" : "grayscale"}`}>
+                  {/* Premium Quality Lock/Unlock Badge */}
+                  <div className={`absolute top-2 right-2 p-1 rounded-full backdrop-blur-md shadow-sm border ${
+                    isUnlocked 
+                      ? "bg-white/60 dark:bg-slate-800/60 border-white/50 dark:border-slate-600/50" 
+                      : "bg-slate-900/5 dark:bg-white/5 border-transparent"
+                  }`}>
+                    {isUnlocked ? (
+                      <Unlock size={10} className={colors.text} strokeWidth={3} />
+                    ) : (
+                      <Lock size={10} className="text-slate-400 dark:text-slate-500" strokeWidth={3} />
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2.5 mb-1.5 pt-1">
+                    <span className={`text-2xl drop-shadow-sm ${isUnlocked ? "saturate-150" : "grayscale opacity-70"}`}>
                       {achievement.icon}
                     </span>
-                    {!isUnlocked && <Lock size={10} className="text-slate-300 dark:text-slate-600" />}
                   </div>
                   <p className={`text-xs font-bold truncate ${isUnlocked ? colors.text : "text-slate-400 dark:text-slate-600"}`}>
                     {achievement.title}

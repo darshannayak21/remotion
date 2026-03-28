@@ -25,6 +25,7 @@ import {
 import Link from "next/link";
 import FlexChat from "@/components/dashboard/FlexChat";
 import { GamificationPanel } from "@/components/dashboard/GamificationPanel";
+import { NotificationButton } from "@/components/ui/notification-button";
 
 const fadeUp: any = {
   hidden: { opacity: 0, y: 24 },
@@ -187,17 +188,26 @@ function DashboardContent() {
         transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
         className="relative mb-8 pt-4"
       >
-        <p className="text-sm text-slate-400 dark:text-slate-400 font-medium mb-1">{greeting},</p>
-        <h1
-          className="text-3xl sm:text-4xl font-bold tracking-tight"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          <span className="text-gradient-maroon">{displayName}</span>
-        </h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm sm:text-base flex items-center gap-2">
-          <Calendar size={14} className="text-slate-400 dark:text-slate-500" />
-          {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm text-slate-400 dark:text-slate-400 font-medium mb-1">{greeting},</p>
+            <h1
+              className="text-3xl sm:text-4xl font-bold tracking-tight"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              <span className="text-gradient-maroon">{displayName}</span>
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm sm:text-base flex items-center gap-2">
+              <Calendar size={14} className="text-slate-400 dark:text-slate-500" />
+              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+            </p>
+          </div>
+          <NotificationButton
+            count={showNotification ? 1 : 0}
+            size="md"
+            onClick={() => setShowNotification(prev => !prev)}
+          />
+        </div>
       </motion.div>
 
       {/* ── 🎮 Gamification Panel ── */}

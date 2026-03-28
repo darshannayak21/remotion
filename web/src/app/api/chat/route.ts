@@ -33,9 +33,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid messages array" }, { status: 400 });
     }
 
-    const apiKey = process.env.PATIENT_CHATBOT_API_KEY;
+    let apiKey = process.env.GROQ_SUGGEST_API_KEY;
+    
+    // Automatically fallback to reading the parent d:\pose\.env file at runtime 
+    // since Next.js normally ignores parent directories for env files.
     if (!apiKey) {
-      console.error("PATIENT_CHATBOT_API_KEY is not set");
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const envPath = path.resolve(process.cwd(), "..", ".env");
+        if (fs.existsSync(envPath)) {
+          const envContent = fs.readFileSync(envPath, "utf-8");
+          const match = envContent.match(/GROQ_SUGGEST_API_KEY=(.+)/);
+          if (match && match[1]) {
+            apiKey = match[1].trim();
+            console.log("Loaded GROQ_SUGGEST_API_KEY from root .env successfully");
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to read from root .env:", e);
+      }
+    }
+
+    if (!apiKey) {
+      console.error("GROQ_SUGGEST_API_KEY is not set in process.env or the root .env file");
       return NextResponse.json({ error: "Chatbot is not configured" }, { status: 500 });
     }
 
